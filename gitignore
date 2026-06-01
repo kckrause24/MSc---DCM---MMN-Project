@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+
+# MATLAB
+*.asv
+*.mlx.autosave
+
+# Raw neuroimaging / MEG data
+*.fif
+*.json
+*.nii
+*.nii.gz
+*.edf
+*.bdf
+*.vhdr
+*.vmrk
+*.eeg
+
+# SPM / MATLAB data outputs
+*.mat
+*.dat
+
+# Large outputs / temp files
+*.log
+*.tmp
+*.bak
+
+# Python cache, just in case
+__pycache__/
+*.pyc
