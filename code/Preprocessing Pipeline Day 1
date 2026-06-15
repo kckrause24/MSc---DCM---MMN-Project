@@ -1,132 +1,282 @@
-# MEG MMN Project - Day 1 Restart From Continuous SPM File
 
-This folder contains the GitHub-ready code and notes for the **Day 1 restart and trial-definition stage** of the preprocessing pipeline.
+# Day 1 preprocessing progress
 
-## What this covers
+This folder contains the MATLAB/SPM progress from Day 1 of the MEG preprocessing pipeline for the pilot participant.
 
-This stage restarted preprocessing from the continuous SPM-converted dataset because the existing epoched file had been created with the wrong epoch window.
+## Contents
+- `matlab/day1_pipeline_progress.m` — MATLAB script reflecting the code run so far
+- `docs/day1_progress_notes.md` — lab-book style notes summarising what was completed and what failed
 
-Completed in this stage:
+## Status at end of session
+Completed:
+- Loaded the continuous SPM file
+- Inspected events and confirmed the correct event stream (`STI101_up`)
+- Defined a new trial file with epoch window `-100 to 300 ms`
+- Converted again in epoched mode selecting MEG channels
+- Baseline-corrected the new epoched file
+- Downsampled to 200 Hz
 
-1. Load the continuous SPM file
-2. Inspect the event structure
-3. Confirm the correct event stream for trial definition
-4. Redefine trials with the correct epoch window
-5. Save the new trial-definition file
+Blocked:
+- High-pass filtering at 0.5 Hz failed because `butter` was not available in the current MATLAB installation
+- Signal Processing Toolbox license tested as available, but the toolbox was not installed/accessible (`which butter` returned not found)
 
-## Files in this folder
+## Current last successful file
+`dbe2_sub-2247A_run-01.mat`
+# Day 1 progress notes
 
-- `matlab/day1_restart_and_trial_definition.m`  
-  MATLAB code used up to the trial-definition stage.
-
-- `docs/day1_notes_for_labbook.md`  
-  Lab-book style notes describing what was done and what was found.
-
-## Input dataset used
-
-- Continuous SPM file: `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
-
-## Key results from this stage
-
-- Dataset type confirmed as: **continuous**
-- Number of trials in continuous file: **1**
-- Sampling rate: **1000 Hz**
-- Correct event stream for epoching: **`STI101_up`**
-- Event mapping confirmed as:
-  - `1 = Standard`
-  - `2 = Pitch Deviant`
-  - `3 = Duration Deviant`
-- New trial window defined as:
-  - **Epoch:** `-100 to +300 ms`
-  - **Trigger shift:** `0 ms`
-- Total number of trials defined: **1500**
-
-## Important note
-
-The next step in the pipeline is **Convert directly in epoched mode** using the new trial-definition file:
-
-- `trialdef_sub-2247A_run-01.mat`
-
-This step was **not yet completed** in this folder's code/notes.
-# Day 1 Notes for Lab Book
-
-## Aim
-
-Restart preprocessing from the continuous SPM-converted MEG dataset because the existing epoched file had been created with the wrong epoch window.
-
-## Input dataset used
+## Context
+The existing `espmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat` file was not used because it had been created with the wrong epoch window. Preprocessing was therefore restarted from the continuous converted SPM file:
 
 - `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
 
-## What was done
+## Completed steps
 
-### 1. Loaded the continuous SPM file
-The continuous SPM-converted MEG dataset was loaded in MATLAB/SPM to confirm that it was the correct file to restart from.
+### 1. Loaded the continuous SPM dataset
+Confirmed that the restart point was valid:
+- dataset type: continuous
+- trials: 1
+- sampling rate: 1000 Hz
 
-Confirmed:
-- dataset type = `continuous`
-- number of trials = `1`
-- sampling rate = `1000 Hz`
-
-### 2. Inspected the event structure
-The events in the continuous dataset were extracted and inspected.
-
-Findings:
-- total number of events = `6304`
-- unique event types included:
-  - `STI001_down`
-  - `STI001_up`
-  - `STI002_down`
-  - `STI002_up`
-  - `STI101_down`
-  - `STI101_up`
-  - `STI201_up`
-
-### 3. Confirmed the correct event stream for epoching
-The correct event stream for trial definition was confirmed to be:
+### 2. Inspected event structure
+Extracted the events from the continuous file and confirmed that the relevant event stream for trial definition was:
 - `STI101_up`
 
-Within this stream, the event mapping was:
-- `1 = Standard`
-- `2 = Pitch Deviant`
-- `3 = Duration Deviant`
+Unique event types observed included:
+- `STI001_down`
+- `STI001_up`
+- `STI002_down`
+- `STI002_up`
+- `STI101_down`
+- `STI101_up`
+- `STI201_up`
 
-Trial counts were:
-- `1200 = Standard`
-- `150 = Pitch Deviant`
-- `150 = Duration Deviant`
+### 3. Confirmed the condition mapping
+Using `STI101_up`, the stimulus mapping was:
+- value 1 = Standard
+- value 2 = Pitch Deviant
+- value 3 = Duration Deviant
 
-### 4. Redefined the trials in SPM
-A new trial definition was created in SPM using the continuous `spmeeg` file.
+Counts were confirmed as:
+- Standard: 1200
+- Pitch Deviant: 150
+- Duration Deviant: 150
 
-Settings used:
-- epoch window = `-100 to +300 ms`
-- trigger shift = `0 ms`
-- number of conditions = `3`
+### 4. Redefined trials
+A new trial definition was created in SPM with:
+- epoch window: -100 to 300 ms
+- trigger shift: 0 ms
+- three conditions: Standard, Pitch Deviant, Duration Deviant
 
-Condition definitions:
-- Standard: `STI101_up`, value `1`
-- Pitch Deviant: `STI101_up`, value `2`
-- Duration Deviant: `STI101_up`, value `3`
-
-The new trial-definition file was saved as:
+Saved trial file:
 - `trialdef_sub-2247A_run-01.mat`
 
-### 5. Checked the trial-definition output
-Confirmed that:
-- `conditionlabels` contained Standard, Pitch Deviant, and Duration Deviant
-- `trl` had size `1500 x 3`
+The resulting trial definition contained:
+- 1500 trials total
+- `trl` size = 1500 x 3
 
-This confirmed that 1500 trials were defined successfully with the corrected epoch window.
+### 5. Converted again in epoched mode
+Used SPM Convert with:
+- input file: `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
+- reading mode: Epoched
+- trial source: Trial File
+- trial file: `trialdef_sub-2247A_run-01.mat`
+- channel selection: MEG
+- output filename: `e2_sub-2247A_run-01`
 
-## Outcome of this stage
+The new epoched file showed:
+- 1500 trials
+- time start: -100 ms
+- time end: 300 ms
+- condition labels present: Standard, Pitch Deviant, Duration Deviant
 
-Successfully restarted preprocessing from the continuous SPM file and created a corrected trial-definition file.
+### 6. Baseline correction
+Applied baseline correction to the new epoched file using:
+- baseline window: -100 to 0 ms
+
+Output file:
+- `be2_sub-2247A_run-01.mat`
+
+### 7. Downsampling
+Downsampled the baseline-corrected dataset to 200 Hz.
+
+Output file:
+- `dbe2_sub-2247A_run-01.mat`
+
+Checks after loading the output file confirmed:
+- trials: 1500
+- sampling rate: 200 Hz
+- time window: -100 to 300 ms
+- condition labels unchanged
+
+## Current problem
+
+### High-pass filtering failed
+Attempted high-pass filtering at 0.5 Hz in SPM using a Butterworth filter. This failed with an error stating that `butter` required:
+- DSP System Toolbox, or
+- Signal Processing Toolbox
+
+Diagnostic checks showed:
+- `which butter` → not found
+- `license('test','Signal_Toolbox')` → 1
+- `license('test','DSP_System_Toolbox')` → 0
+- `ver` did not list Signal Processing Toolbox
+
+### Interpretation
+This suggests that the Signal Processing Toolbox license is available, but the toolbox is not installed or not accessible in the current MATLAB installation.
+
+## Last successful file
+- `dbe2_sub-2247A_run-01.mat`
 
 ## Next step
+Install/enable Signal Processing Toolbox, then resume the planned filtering stages:
+- 0.5 Hz high-pass
+- 20 Hz low-pass
+- continue with structured visual inspection and artefact handling
+%% Day 1 preprocessing progress
+% Pilot participant: sub-2247A, ses-0001, run-01
+% Working directory: /Users/klauskrause/Documents/MATLAB/ds004837_spm_test
+% SPM path: /Users/klauskrause/Documents/MATLAB/spm
 
-Convert directly in epoched mode using:
-- `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
-- `trialdef_sub-2247A_run-01.mat`
+%% Setup
+clear; clc;
+addpath('/Users/klauskrause/Documents/MATLAB/spm');
+spm('defaults','eeg');
+spm_jobman('initcfg');
+cd('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test');
 
-This will create a new correctly epoched dataset before baseline correction, downsampling, and filtering.
+continuous_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat';
+D = spm_eeg_load(continuous_file);
+
+disp(D)
+disp(['Type: ' D.type])
+disp(['Trials: ' num2str(D.ntrials)])
+disp(['Sampling rate: ' num2str(D.fsample) ' Hz'])
+
+%% Inspect events
+% Confirmed the correct stimulus event stream is STI101_up.
+ev = events(D);
+disp(['Number of events: ' num2str(numel(ev))])
+
+T = table({ev.type}', {ev.value}', [ev.time]', ...
+    'VariableNames', {'Type','Value','Time'});
+disp(T(1:min(40,height(T)), :))
+
+types = string({ev.type})';
+u_types = unique(types);
+disp('Unique event types:')
+disp(u_types)
+
+%% Confirm counts for STI101_up
+sel = strcmp({ev.type}, 'STI101_up');
+vals  = cellfun(@double, {ev(sel).value})';
+times = [ev(sel).time]'; %#ok<NASGU>
+
+u = unique(vals);
+counts = arrayfun(@(x) sum(vals == x), u);
+disp(table(u, counts))
+
+%% Define trials in SPM GUI
+% Ran:
+% [trl, conditionlabels, Sdef] = spm_eeg_definetrial;
+%
+% In SPM, used:
+% - Dataset: spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat
+% - Start of trial: -100 ms
+% - End of trial: 300 ms
+% - Shift triggers: 0 ms
+% - Conditions:
+%   * Standard         : STI101_up, value 1
+%   * Pitch Deviant    : STI101_up, value 2
+%   * Duration Deviant : STI101_up, value 3
+% - Saved trial file as: trialdef_sub-2247A_run-01.mat
+
+trialfile = fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', ...
+    'trialdef_sub-2247A_run-01.mat');
+
+% After GUI step, trial definition was saved with:
+% save(trialfile, 'trl', 'conditionlabels');
+% disp(conditionlabels)
+% size(trl)
+
+%% Convert again in epoched mode in SPM GUI
+% Used SPM Convert with:
+% - Input file: spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat
+% - Define settings: Yes
+% - Reading mode: Epoched
+% - Trial source: Trial File
+% - Trial file: trialdef_sub-2247A_run-01.mat
+% - Channel selection: MEG
+% - Output filename: e2_sub-2247A_run-01
+
+new_epoched_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/e2_sub-2247A_run-01.mat';
+D2 = spm_eeg_load(new_epoched_file);
+
+disp(D2)
+disp(['Type: ' D2.type])
+disp(['Trials: ' num2str(D2.ntrials)])
+disp(['Sampling rate: ' num2str(D2.fsample) ' Hz'])
+disp(['Time start (ms): ' num2str(D2.time(1)*1000)])
+disp(['Time end (ms): ' num2str(D2.time(end)*1000)])
+disp(unique(string(conditions(D2)))')
+
+%% Baseline correction
+S = [];
+S.D = new_epoched_file;
+S.timewin = [-100 0];
+S.prefix = 'b';
+D_bc = spm_eeg_bc(S);
+
+disp(D_bc)
+disp(['New file: ' D_bc.fname])
+
+D3 = spm_eeg_load(fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', D_bc.fname));
+disp(D3)
+disp(['Trials: ' num2str(D3.ntrials)])
+disp(['Sampling rate: ' num2str(D3.fsample) ' Hz'])
+disp(['Time start (ms): ' num2str(D3.time(1)*1000)])
+disp(['Time end (ms): ' num2str(D3.time(end)*1000)])
+disp(unique(string(conditions(D3)))')
+
+%% Downsampling to 200 Hz
+bc_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/be2_sub-2247A_run-01.mat';
+
+S = [];
+S.D = bc_file;
+S.fsample_new = 200;
+S.prefix = 'd';
+D_ds = spm_eeg_downsample(S);
+
+disp(D_ds)
+disp(['New file: ' D_ds.fname])
+
+D4 = spm_eeg_load(fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', D_ds.fname));
+disp(D4)
+disp(['Trials: ' num2str(D4.ntrials)])
+disp(['Sampling rate: ' num2str(D4.fsample) ' Hz'])
+disp(['Time start (ms): ' num2str(D4.time(1)*1000)])
+disp(['Time end (ms): ' num2str(D4.time(end)*1000)])
+disp(unique(string(conditions(D4)))')
+
+%% Attempted high-pass filter at 0.5 Hz (failed)
+ds_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/dbe2_sub-2247A_run-01.mat';
+
+S = [];
+S.D = ds_file;
+S.band = 'high';
+S.freq = 0.5;
+S.type = 'butterworth';
+S.dir = 'twopass';
+S.prefix = 'fhp_';
+
+% This failed because butter was not available in the MATLAB installation.
+% D_hp = spm_eeg_filter(S);
+
+%% Toolbox diagnostics
+which butter
+ver
+license('test','Signal_Toolbox')
+license('test','DSP_System_Toolbox')
+
+%% End-of-session status
+% Last successful file:
+% dbe2_sub-2247A_run-01.mat
