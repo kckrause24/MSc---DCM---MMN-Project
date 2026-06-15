@@ -280,3 +280,137 @@ license('test','DSP_System_Toolbox')
 %% End-of-session status
 % Last successful file:
 % dbe2_sub-2247A_run-01.mat
+### 8. Diagnosed and resolved filtering problem
+The first attempt at high-pass filtering failed because SPM could not access the MATLAB `butter` function. Diagnostic checks showed:
+- `which butter` returned not found
+- `license('test','Signal_Toolbox')` returned `1`
+- `license('test','DSP_System_Toolbox')` returned `0`
+- `ver` did not list Signal Processing Toolbox
+
+Interpretation:
+- the Signal Processing Toolbox license was available
+- the toolbox itself was not installed or not accessible in the current MATLAB installation
+
+The toolbox was then installed, MATLAB was restarted, and filtering was rerun successfully.
+
+### 9. Applied the agreed filters
+Applied:
+- high-pass filter: `0.5 Hz`
+- low-pass filter: `20 Hz`
+- no notch filter
+
+Intermediate/output files:
+- `fhp_dbe2_sub-2247A_run-01.mat`
+- `flp_fhp_dbe2_sub-2247A_run-01.mat`
+
+Checks on the final filtered file confirmed:
+- `1500 trials`
+- sampling rate: `200 Hz`
+- time window: `-100 to +300 ms`
+- condition labels unchanged
+
+### 10. Completed first-pass visual QC
+Performed structured visual inspection of sampled trials across conditions. Based on careful review, three channels were identified as consistently abnormal for this participant/run:
+- `MEG1121`
+- `MEG0721`
+- `MEG1821`
+
+These channels should be treated as bad channels for this participant/run only.
+
+## Day 1 endpoint
+At the end of Day 1, preprocessing had reached the planned stopping point:
+- corrected epoching completed
+- baseline correction completed
+- downsampling completed
+- filtering completed
+- first-pass visual QC completed
+- bad channels identified for this participant/run
+
+Current main Day 1 file:
+- `flp_fhp_dbe2_sub-2247A_run-01.mat`
+
+## Planned next step (Day 2)
+Day 2 should begin from the filtered Day 1 file and proceed to:
+1. mark the identified bad channels in the saved dataset if not already saved
+2. run Tier 1 automatic artefact rejection using the MMN tutorial method
+3. review the artefact-rejection output
+4. re-inspect the cleaned dataset
+5. move to condition-wise averaging if the data are acceptable
+%% Filtering issue encountered and resolved
+% Initial high-pass filtering failed because 'butter' was unavailable.
+% Diagnostic checks used:
+which butter
+ver
+license('test','Signal_Toolbox')
+license('test','DSP_System_Toolbox')
+
+% After installing Signal Processing Toolbox and restarting MATLAB,
+% filtering was rerun successfully.
+
+%% High-pass filter at 0.5 Hz
+ds_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/dbe2_sub-2247A_run-01.mat';
+
+S = [];
+S.D = ds_file;
+S.band = 'high';
+S.freq = 0.5;
+S.type = 'butterworth';
+S.dir = 'twopass';
+S.prefix = 'fhp_';
+D_hp = spm_eeg_filter(S);
+
+disp(D_hp)
+disp(['New file: ' D_hp.fname])
+
+D5 = spm_eeg_load(fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', D_hp.fname));
+disp(D5)
+disp(['Trials: ' num2str(D5.ntrials)])
+disp(['Sampling rate: ' num2str(D5.fsample) ' Hz'])
+disp(['Time start (ms): ' num2str(D5.time(1)*1000)])
+disp(['Time end (ms): ' num2str(D5.time(end)*1000)])
+disp(unique(string(conditions(D5)))')
+
+%% Low-pass filter at 20 Hz
+hp_file = fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', D_hp.fname);
+
+S = [];
+S.D = hp_file;
+S.band = 'low';
+S.freq = 20;
+S.type = 'butterworth';
+S.dir = 'twopass';
+S.prefix = 'flp_';
+D_lp = spm_eeg_filter(S);
+
+disp(D_lp)
+disp(['New file: ' D_lp.fname])
+
+D6 = spm_eeg_load(fullfile('/Users/klauskrause/Documents/MATLAB/ds004837_spm_test', D_lp.fname));
+disp(D6)
+disp(['Trials: ' num2str(D6.ntrials)])
+disp(['Sampling rate: ' num2str(D6.fsample) ' Hz'])
+disp(['Time start (ms): ' num2str(D6.time(1)*1000)])
+disp(['Time end (ms): ' num2str(D6.time(end)*1000)])
+disp(unique(string(conditions(D6)))')
+
+%% Current Day 1 working file
+final_file = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/flp_fhp_dbe2_sub-2247A_run-01.mat';
+D_final = spm_eeg_load(final_file);
+
+%% Visual QC outcome (from manual review)
+% Based on structured visual inspection across conditions, the following
+% channels were identified as consistently abnormal for this participant/run:
+%   - MEG1121
+%   - MEG0721
+%   - MEG1821
+
+%% Optional: mark identified bad channels in the saved dataset
+% Uncomment and run if you want to write the bad-channel status into the file.
+%
+% bad_labels = {'MEG1121','MEG0721','MEG1821'};
+% bad_idx = D_final.selectchannels(bad_labels);
+% D_final = badchannels(D_final, bad_idx, 1);
+% save(D_final);
+% disp('Bad channels marked:')
+% disp(D_final.chanlabels(D_final.badchannels))
+
