@@ -1,0 +1,116 @@
+# Lab-book Entry — Sunday 14 June 2026
+
+## Title
+Redesign and optimisation of the MEG preprocessing pipeline
+
+## Summary
+On Sunday 14 June 2026, I spent the day redesigning and optimising the proposed MEG preprocessing pipeline for the MSc project. The aim was to produce a preprocessing sequence that was methodologically justified, practical to run in SPM, aligned with the MEG and EEG MMN tutorials, and consistent with my supervisor's recommended three-tier artefact rejection strategy.
+
+## Main outcome
+The main outcome of the day was a revised preprocessing pipeline with the following key features:
+
+- early confirmation of event mapping and trial definition
+- conversion directly in epoched mode using a saved trial file
+- baseline correction before downsampling
+- downsampling to 200 Hz as the default pilot setting
+- filtering matched to the agreed study settings: 0.5 Hz high-pass, 20 Hz low-pass, no notch filter
+- manual bad-channel review before automatic artefact rejection
+- three-tier artefact handling:
+  - Tier 1: automatic MMN-tutorial artefact detection
+  - Tier 2: FieldTrip visual artefact rejection if needed
+  - Tier 3: advanced SPM artefact workflow only for difficult cases
+- final robust averaging by condition to produce participant-level responses for later source reconstruction and DCM
+
+## Final optimised preprocessing pipeline
+
+MEG Preprocessing Pipeline
+
+1. Import the raw MEG recording into SPM
+Convert the raw .fif file into SPM M/EEG format and do an initial sanity check that the file opens correctly, the MEG channels are present, and the event markers are present. This is the standard first step before any later preprocessing decisions.
+
+2. Confirm the event mapping and define the trial structure early
+Create the trial-definition file early, with condition labels attached at that stage. This follows the MEG tutorial’s logic: define trials first, then convert in epoched mode using the saved trial file. For your project, the working trial structure should be:
+• Epoch window: -100 to +300 ms
+• Baseline window: -100 to 0 ms
+Using a trial file early keeps the condition structure fixed from the beginning and makes the later pipeline easier to batch consistently across participants.
+
+3. Convert directly in epoched mode, selecting MEG channels
+At conversion, read the file in epoched mode using the saved trial-definition file and select MEG channels. This is exactly how the MEG tutorial handles the MEG dataset: it converts using the trial file and selects MEG at conversion. For your project, the main analysis channels should therefore be:
+• MEGMAG
+• MEGPLANAR
+Keep EOG only as an auxiliary channel if you later need it to interpret artefacts or poor outputs; it should not be part of the main MEG analysis set by default.
+
+4. Check channel metadata
+Make sure SPM correctly recognises the MEG channels as MEG, and EOG as EOG if retained. This prevents confusion later when you inspect channels, mark bad channels, and run artefact routines. This is a practical necessity for a clean preprocessing workflow, even though the tutorials express it more through channel selection and channel-type setup than as a standalone conceptual step.
+
+5. Baseline-correct the epoched data immediately
+Do baseline correction before downsampling. In the MEG tutorial, this is explicit: baseline correction is not automatic during conversion, and it should be done first because it helps prevent edge artefacts in later processing, including filtering and downsampling. For your project, use:
+• Baseline: -100 to 0 ms
+This is the strongest tutorial-based reason to keep baseline correction early in the pipeline.
+
+6. Downsample after baseline correction
+After baseline correction, downsample the epoched dataset. Both SPM tutorials use 200 Hz for simple evoked-response analysis, and both explicitly explain the practical reason: the original data are more densely sampled than needed, and reducing to 200 Hz makes files smaller and later processing faster without sacrificing the time resolution typically needed for ERP/ERF work. For your project, a sensible default is:
+• Downsample to 200 Hz
+
+7. Apply the agreed filtering settings
+Keep the filtering settings that you and your supervisor already decided should match the original study:
+• Offline high-pass: 0.5 Hz
+• Offline low-pass: 20 Hz
+• No notch filter
+This keeps the project aligned with the published dataset workflow while still using the MEG tutorial’s logic that baseline correction should come first. The MEG tutorial explicitly states that baseline correction helps prevent edge artefacts in later filtering/downsampling, so this order is defensible.
+
+8. Do a brief manual inspection of the epoched data and mark any obviously bad channels
+Before running automatic artefact rejection, inspect a structured sample of the epoched dataset and mark any channels that are clearly abnormal across trials. This is directly in line with the EEG MMN tutorial, where the user first opens the epoched dataset, spots a visibly abnormal channel, marks it bad, saves, and only then runs automatic artefact detection. For your project, keep the sampling rule you already agreed:
+• 10 Standard trials
+• 10 Pitch Deviant trials
+• 10 Duration Deviant trials
+Use this step to identify channels that are consistently and radically different from the others, not channels that merely look a bit noisy in one isolated trial.
+
+9. Tier 1 artefact rejection: automatic MMN-tutorial method on the epoched dataset
+This should be the default artefact-rejection method for the project. The EEG MMN tutorial demonstrates Detect artefacts on the epoched dataset, using the Threshold channels algorithm. It states that the flagged trials are marked as artefacts, and that the procedure can also detect channels with a large number of artefacts. This is the right first-line method for your project because your supervisor explicitly said to use the MMN tutorial first (automatic).
+So the default artefact order should be:
+epoch → baseline correct → downsample → filter → brief visual review / mark obvious bad channels → automatic threshold-based artefact detection
+The important correction here is that default artefact rejection now happens after epoching, because the MMN tutorial method operates on the epoched dataset.
+
+10. Review the automatic artefact-rejection output
+After automatic artefact detection, inspect:
+• how many trials were flagged,
+• whether one condition lost too many trials,
+• whether a bad channel is still dominating the output,
+• and whether the cleaned epoched data now look acceptable.
+This is the point where you decide whether the default method was sufficient or whether you need to escalate to the next tier. The MMN tutorial itself shows that the automatic method can both reject trials and identify channels with many artefacts, so this review stage is essential.
+
+11. Tier 2 artefact rejection: FieldTrip visual artifact rejection if the default automatic method is not enough
+If the automatic MMN-tutorial method leaves obvious residual contamination or gives unsatisfactory results, the next step should be FieldTrip visual artifact rejection. The MMN tutorial explicitly points to this as the interactive alternative to the automatic artefact-rejection tool. This makes it the correct second-line option in your supervisor’s tiered strategy.
+Use this only when the automatic thresholding method is not enough. It should not be the default for every participant.
+
+12. Tier 3 artefact rejection: advanced SPM artefact workflow only for difficult cases
+If the data are still problematic after the first two tiers, move to the advanced SPM artefact-removal workflow. The SPM manual explains that this is meant for more complicated situations, especially when you want to detect artefacts such as flat segments, jumps, or certain high-frequency features that are easier to identify before later processing distorts them. It also explains the Mark mode on continuous data and the later Reject mode after epoching.
+This should be treated as a fallback for difficult participants, not the default pipeline. The manual itself says the MMN tutorial’s trial rejection and robust averaging work well in the majority of practical cases for evoked responses, and that the advanced chapter is for situations that need more sophisticated methods.
+
+13. Re-inspect the cleaned epoched dataset
+After whichever artefact tier you end up using, re-open the cleaned epoched dataset and verify that:
+• the remaining trials still look plausible,
+• no condition has been disproportionately damaged,
+• and you still have enough Standard, Pitch Deviant, and Duration Deviant trials for reliable participant-level averages.
+This is essential before averaging, especially because your project’s later source reconstruction and DCM will depend on stable condition averages. That general logic is consistent with the purpose of both tutorials and with the advanced artefact manual’s emphasis on carrying artefact information through later processing in a controlled way.
+
+14. Merge runs only if a participant has more than one usable run
+If any participant has more than one usable run, preprocess each run in the same way and then merge the resulting epoched datasets before moving to the final participant-level averages. This is exactly how the MEG tutorial handles multiple runs: preprocess the two epoched files and then merge them.
+For your pilot participant, this step is only relevant if there is more than one run.
+
+15. Average by condition, preferably robustly
+End preprocessing with condition-wise averages for:
+• Standard
+• Pitch Deviant
+• Duration Deviant
+The MMN tutorial and the MEG tutorial both support the logic of ending preprocessing with participant-level evoked responses, and the MMN tutorial explicitly says that robust averaging can suppress artefacts automatically without fully rejecting trials or channels, while the MEG tutorial continues from clean condition-level data to later group/source work. For your project, robust averaging is the best default because your endpoint is not just a clean sensor-level plot, but stable averages for source reconstruction and DCM.
+
+Final recommended order
+Import raw MEG → inspect import → confirm event mapping → define trials early → convert in epoched mode with MEG channels → check channel metadata → baseline-correct epoched data → downsample → apply agreed filters (0.5 Hz high-pass, 20 Hz low-pass, no notch) → inspect a structured sample and mark any obviously bad channels → run automatic threshold-based artefact detection on the epoched dataset (default Tier 1) → review the result → if still problematic use FieldTrip visual artifact rejection (Tier 2) → if still problematic use the advanced SPM artefact workflow (Tier 3) → re-inspect cleaned data → merge runs if necessary → robustly average by condition.
+
+## Reflection
+This redesign was important because it clarified the order of operations in the preprocessing workflow and resolved earlier uncertainty about where epoching, baseline correction, filtering, channel review, and artefact rejection should occur. The revised sequence is intended to be both theoretically defensible and practical for batch processing across participants, while still allowing escalation to more advanced artefact handling only when required.
+
+## Output of the day
+The output of this work was a full optimised preprocessing pipeline to guide the practical Day 1 and Day 2 preprocessing stages for the pilot participant and later participants in the dataset.
