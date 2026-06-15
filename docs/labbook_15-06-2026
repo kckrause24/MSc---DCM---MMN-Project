@@ -1,0 +1,67 @@
+Monday 15th June 2026
+Date: 15 June 2026
+Participant: sub-2247A
+Session: ses-0001
+Run: run-01
+Aim for Day 1
+The aim of Day 1 was to restart preprocessing from the correct continuous SPM dataset, rebuild the epoched dataset using the correct trial window, and complete preprocessing up to the end of first-pass visual quality control.
+Starting Point
+The existing epoched file was not used because it had been created with the wrong epoch window. Preprocessing was therefore restarted from the continuous converted SPM file: spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat.
+Software Setup
+MATLAB release: R2025b Update 5
+SPM version: SPM26 (26.01.rc1)
+Working directory: /Users/klauskrause/Documents/MATLAB/ds004837_spm_test
+SPM path: /Users/klauskrause/Documents/MATLAB/spm
+Steps Completed
+Loaded the continuous converted SPM dataset
+•	Loaded spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat and confirmed dataset type = continuous, trials = 1, and sampling rate = 1000 Hz.
+•	This confirmed that the file was the correct restart point for rebuilding the trial structure.
+Inspected the event structure
+•	Extracted the events from the continuous file and confirmed that the file contained 6304 events.
+•	The unique event types observed were STI001_down, STI001_up, STI002_down, STI002_up, STI101_down, STI101_up, and STI201_up.
+•	The relevant stream for trial definition was identified as STI101_up.
+Confirmed the condition mapping
+•	Using STI101_up, the event values were confirmed as 1 = Standard, 2 = Pitch Deviant, and 3 = Duration Deviant.
+•	Counts were Standard = 1200, Pitch Deviant = 150, and Duration Deviant = 150.
+Created a new trial definition
+•	Defined a new trial file in SPM using an epoch window of -100 to +300 ms, a trigger shift of 0 ms, and the three conditions Standard, Pitch Deviant, and Duration Deviant.
+•	Saved file: trialdef_sub-2247A_run-01.mat.
+•	The resulting trl matrix had size 1500 x 3, confirming that 1500 trials were defined successfully.
+Re-converted the data in epoched mode
+•	Used SPM Convert with input file spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat, reading mode Epoched, trial source Trial File, trial file trialdef_sub-2247A_run-01.mat, channel selection MEG, and output filename e2_sub-2247A_run-01.
+•	Checks on the new epoched file showed 1500 trials, time window -100 to +300 ms, sampling rate 1000 Hz, and the three condition labels present.
+Applied baseline correction
+•	Applied baseline correction using the window -100 to 0 ms.
+•	Output file: be2_sub-2247A_run-01.mat.
+•	Checks confirmed 1500 trials, unchanged sampling rate (1000 Hz), and unchanged time window (-100 to +300 ms).
+Downsampled the data
+•	Downsampled the baseline-corrected dataset to 200 Hz.
+•	Output file: dbe2_sub-2247A_run-01.mat.
+•	Checks confirmed 1500 trials, sampling rate 200 Hz, and time window still -100 to +300 ms.
+Diagnosed and resolved the filtering problem
+•	The first attempt at high-pass filtering failed because SPM could not access the MATLAB butter function.
+•	Diagnostic checks showed that the Signal Processing Toolbox license was available but the toolbox itself was not installed or accessible.
+•	The toolbox was then installed, MATLAB was restarted, and filtering was rerun successfully.
+Applied the agreed filters
+•	Applied high-pass 0.5 Hz, low-pass 20 Hz, and no notch filter.
+•	Output files: fhp_dbe2_sub-2247A_run-01.mat and flp_fhp_dbe2_sub-2247A_run-01.mat.
+•	Checks on the final filtered file confirmed 1500 trials, sampling rate 200 Hz, time window -100 to +300 ms, and unchanged condition labels.
+Completed first-pass visual QC
+•	Performed structured visual inspection of sampled trials across conditions.
+•	Three channels were identified as consistently abnormal for this participant/run: MEG1121, MEG0721, and MEG1821.
+Key Files Created on Day 1
+•	trialdef_sub-2247A_run-01.mat
+•	e2_sub-2247A_run-01.mat
+•	be2_sub-2247A_run-01.mat
+•	dbe2_sub-2247A_run-01.mat
+•	fhp_dbe2_sub-2247A_run-01.mat
+•	flp_fhp_dbe2_sub-2247A_run-01.mat
+End-of-Day Status
+Day 1 reached the planned endpoint: corrected epoching, baseline correction, downsampling, filtering, and first-pass visual QC were all completed for the pilot participant/run.
+Current main Day 1 file: flp_fhp_dbe2_sub-2247A_run-01.mat
+Planned Next Step (Day 2)
+1.	mark the identified bad channels in the saved dataset if not already saved
+2.	run Tier 1 automatic artefact rejection using the MMN tutorial method
+3.	review the artefact-rejection output
+4.	re-inspect the cleaned dataset
+5.	move to condition-wise averaging if the data are acceptable
