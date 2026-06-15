@@ -1,0 +1,132 @@
+# MEG MMN Project - Day 1 Restart From Continuous SPM File
+
+This folder contains the GitHub-ready code and notes for the **Day 1 restart and trial-definition stage** of the preprocessing pipeline.
+
+## What this covers
+
+This stage restarted preprocessing from the continuous SPM-converted dataset because the existing epoched file had been created with the wrong epoch window.
+
+Completed in this stage:
+
+1. Load the continuous SPM file
+2. Inspect the event structure
+3. Confirm the correct event stream for trial definition
+4. Redefine trials with the correct epoch window
+5. Save the new trial-definition file
+
+## Files in this folder
+
+- `matlab/day1_restart_and_trial_definition.m`  
+  MATLAB code used up to the trial-definition stage.
+
+- `docs/day1_notes_for_labbook.md`  
+  Lab-book style notes describing what was done and what was found.
+
+## Input dataset used
+
+- Continuous SPM file: `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
+
+## Key results from this stage
+
+- Dataset type confirmed as: **continuous**
+- Number of trials in continuous file: **1**
+- Sampling rate: **1000 Hz**
+- Correct event stream for epoching: **`STI101_up`**
+- Event mapping confirmed as:
+  - `1 = Standard`
+  - `2 = Pitch Deviant`
+  - `3 = Duration Deviant`
+- New trial window defined as:
+  - **Epoch:** `-100 to +300 ms`
+  - **Trigger shift:** `0 ms`
+- Total number of trials defined: **1500**
+
+## Important note
+
+The next step in the pipeline is **Convert directly in epoched mode** using the new trial-definition file:
+
+- `trialdef_sub-2247A_run-01.mat`
+
+This step was **not yet completed** in this folder's code/notes.
+# Day 1 Notes for Lab Book
+
+## Aim
+
+Restart preprocessing from the continuous SPM-converted MEG dataset because the existing epoched file had been created with the wrong epoch window.
+
+## Input dataset used
+
+- `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
+
+## What was done
+
+### 1. Loaded the continuous SPM file
+The continuous SPM-converted MEG dataset was loaded in MATLAB/SPM to confirm that it was the correct file to restart from.
+
+Confirmed:
+- dataset type = `continuous`
+- number of trials = `1`
+- sampling rate = `1000 Hz`
+
+### 2. Inspected the event structure
+The events in the continuous dataset were extracted and inspected.
+
+Findings:
+- total number of events = `6304`
+- unique event types included:
+  - `STI001_down`
+  - `STI001_up`
+  - `STI002_down`
+  - `STI002_up`
+  - `STI101_down`
+  - `STI101_up`
+  - `STI201_up`
+
+### 3. Confirmed the correct event stream for epoching
+The correct event stream for trial definition was confirmed to be:
+- `STI101_up`
+
+Within this stream, the event mapping was:
+- `1 = Standard`
+- `2 = Pitch Deviant`
+- `3 = Duration Deviant`
+
+Trial counts were:
+- `1200 = Standard`
+- `150 = Pitch Deviant`
+- `150 = Duration Deviant`
+
+### 4. Redefined the trials in SPM
+A new trial definition was created in SPM using the continuous `spmeeg` file.
+
+Settings used:
+- epoch window = `-100 to +300 ms`
+- trigger shift = `0 ms`
+- number of conditions = `3`
+
+Condition definitions:
+- Standard: `STI101_up`, value `1`
+- Pitch Deviant: `STI101_up`, value `2`
+- Duration Deviant: `STI101_up`, value `3`
+
+The new trial-definition file was saved as:
+- `trialdef_sub-2247A_run-01.mat`
+
+### 5. Checked the trial-definition output
+Confirmed that:
+- `conditionlabels` contained Standard, Pitch Deviant, and Duration Deviant
+- `trl` had size `1500 x 3`
+
+This confirmed that 1500 trials were defined successfully with the corrected epoch window.
+
+## Outcome of this stage
+
+Successfully restarted preprocessing from the continuous SPM file and created a corrected trial-definition file.
+
+## Next step
+
+Convert directly in epoched mode using:
+- `spmeeg_sub-2247A_ses-0001_task-attnmod_run-01_meg.mat`
+- `trialdef_sub-2247A_run-01.mat`
+
+This will create a new correctly epoched dataset before baseline correction, downsampling, and filtering.
