@@ -1,0 +1,137 @@
+Script for Batching Fixed Preprocessing Steps
+clear; clc;
+
+addpath('/Users/klauskrause/Documents/MATLAB/spm');
+spm('defaults','eeg');
+spm_jobman('initcfg');
+
+% =========================
+% EDIT ONLY THESE LINES
+% =========================
+subj = 'sub-2328A';
+runname = 'run-01';
+
+dataset_root = '/Users/klauskrause/Desktop/ds004837';
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+
+rawfile = fullfile(dataset_root, subj, 'ses-0001', 'meg', ...
+    [subj '_ses-0001_task-attnmod_' runname '_meg.fif']);
+
+cd(workdir);
+
+continuous_name = ['spmeeg_' subj '_ses-0001_task-attnmod_' runname '_meg'];
+trialfile = fullfile(workdir, ['trialdef_' subj '_' runname '.mat']);
+epoch_name = ['e_' subj '_' runname];
+
+% =========================
+% 1. Convert raw FIF -> continuous SPM
+% =========================
+S = [];
+S.dataset = rawfile;
+S.outfile = continuous_name;
+S.channels = 'MEG';
+S.mode = 'continuous';
+
+D_cont = spm_eeg_convert(S);
+
+% =========================
+% 2. Define trials
+% =========================
+D = spm_eeg_load(fullfile(workdir, [continuous_name '.mat']));
+ev = events(D);
+
+sel = strcmp({ev.type}, 'STI101_up');
+vals = cellfun(@double, {ev(sel).value})';
+times = [ev(sel).time]';
+
+trl = [];
+conditionlabels = {};
+
+for k = 1:numel(vals)
+    if ismember(vals(k), [1 2 3])
+        onset_sample = round(times(k) * D.fsample);
+        start_sample = onset_sample + round((-100/1000) * D.fsample);
+        end_sample   = onset_sample + round((300/1000) * D.fsample);
+        offset = round((-100/1000) * D.fsample);
+
+        trl(end+1, :) = [start_sample end_sample offset]; %#ok<SAGROW>
+
+        if vals(k) == 1
+            conditionlabels{end+1,1} = 'Standard'; %#ok<SAGROW>
+        elseif vals(k) == 2
+            conditionlabels{end+1,1} = 'Pitch Deviant'; %#ok<SAGROW>
+        elseif vals(k) == 3
+            conditionlabels{end+1,1} = 'Duration Deviant'; %#ok<SAGROW>
+        end
+    end
+end
+
+save(trialfile, 'trl', 'conditionlabels');
+
+% =========================
+% 3. Convert continuous -> epoched
+% =========================
+load(trialfile, 'trl', 'conditionlabels');
+
+disp('Checking trial definition file...')
+disp(size(trl))
+disp(conditionlabels(1:min(5,numel(conditionlabels))))
+
+S = [];
+S.dataset = fullfile(workdir, [continuous_name '.mat']);
+S.outfile = epoch_name;
+S.channels = 'MEG';
+S.mode = 'epoched';
+S.trl = trialfile;              % <-- this is the key fix
+S.conditionlabels = conditionlabels;
+
+D_ep = spm_eeg_convert(S);
+
+% =========================
+% 4. Baseline correction
+% =========================
+S = [];
+S.D = fullfile(workdir, [epoch_name '.mat']);
+S.timewin = [-100 0];
+S.prefix = 'b';
+
+D_bc = spm_eeg_bc(S);
+
+% =========================
+% 5. Downsample
+% =========================
+S = [];
+S.D = fullfile(workdir, D_bc.fname);
+S.fsample_new = 200;
+S.prefix = 'd';
+
+D_ds = spm_eeg_downsample(S);
+
+% =========================
+% 6. High-pass filter
+% =========================
+S = [];
+S.D = fullfile(workdir, D_ds.fname);
+S.band = 'high';
+S.freq = 0.5;
+S.type = 'butterworth';
+S.dir = 'twopass';
+S.prefix = 'fhp_';
+
+D_hp = spm_eeg_filter(S);
+
+% =========================
+% 7. Low-pass filter
+% =========================
+S = [];
+S.D = fullfile(workdir, D_hp.fname);
+S.band = 'low';
+S.freq = 20;
+S.type = 'butterworth';
+S.dir = 'twopass';
+S.prefix = 'flp_';
+
+D_lp = spm_eeg_filter(S);
+
+disp('Pre-QC fixed pipeline complete.')
+disp(['Final pre-QC file: ' fullfile(workdir, D_lp.fname)])
