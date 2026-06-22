@@ -1,0 +1,48 @@
+%% Identify healthy controls in ds004837
+% Date: 20 June 2026
+% Aim:
+% Identify all healthy controls (HC) in the dataset and save:
+% 1. a healthy-control metadata table
+% 2. a healthy-control subject ID list
+
+clear; clc;
+
+%% Set dataset root
+dataset_root = '/Users/klauskrause/Desktop/ds004837';
+cd(dataset_root);
+
+%% Load participant metadata
+% The README indicated that participant-level metadata were stored in:
+% derivatives/participants.csv
+
+P = readtable(fullfile(dataset_root, 'derivatives', 'participants.csv'));
+
+%% Filter healthy controls
+HC = P(strcmp(string(P.SUBTYPE2), "HC"), :);
+
+disp(['Number of healthy controls: ' num2str(height(HC))])
+
+%% Display selected metadata columns
+HC(:, {'RECID','SUBTYPE2','SEX','AGE','SCANdate_1'})
+
+%% Extract numeric participant IDs
+disp('Healthy control RECIDs:')
+disp(HC.RECID)
+
+%% Convert RECIDs into dataset-style subject IDs
+hc_ids = compose("sub-%dA", HC.RECID);
+
+disp('Healthy control subject IDs:')
+disp(hc_ids)
+
+%% Save outputs
+% 1. full metadata table for healthy controls
+writetable(HC, fullfile(dataset_root, 'derivatives', 'healthy_controls_only.csv'));
+
+% 2. subject ID list only
+hc_ids_table = table(hc_ids, 'VariableNames', {'participant_id'});
+writetable(hc_ids_table, fullfile(dataset_root, 'derivatives', 'healthy_controls_subject_ids.csv'));
+
+disp('Files saved:')
+disp(fullfile(dataset_root, 'derivatives', 'healthy_controls_only.csv'))
+disp(fullfile(dataset_root, 'derivatives', 'healthy_controls_subject_ids.csv'))
