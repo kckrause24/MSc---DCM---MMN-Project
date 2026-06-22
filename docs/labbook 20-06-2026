@@ -1,0 +1,51 @@
+## Saturday 20th June 2026
+
+### Objective
+
+Today’s aim was to identify the healthy controls in the dataset and generate a clean list of them so that preprocessing could be restricted to the healthy control cohort used in the main analysis.
+
+### Healthy controls identified
+
+A total of **26 healthy controls** were identified from the participant metadata.
+
+Healthy control participant IDs:
+
+* 2221
+* 2242
+* 2247
+* 2253
+* 2259
+* 2262
+* 2268
+* 2269
+* 2286
+* 2320
+* 2328
+* 2342
+* 2350
+* 2355
+* 2372
+* 2384
+* 2387
+* 2406
+* 2426
+* 2430
+* 2479
+* 2494
+* 2496
+* 2512
+* 2538
+* 2574
+
+These were also converted into dataset-style subject IDs (for example, `sub-2221A`, `sub-2242A`, etc.) for use in preprocessing.
+
+### Outputs
+
+Two files were created and saved in the `derivatives` folder:
+
+1. **Healthy-control metadata table**
+2. **Healthy-control subject ID list**
+
+### Outcome
+
+The healthy control cohort was successfully identified and saved, providing the participant list required for running preprocessing on the correct subset of the dataset.
