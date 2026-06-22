@@ -1,0 +1,85 @@
+## Tuesday 16th June 2026
+
+**Date:** 16 June 2026
+**Participant:** sub-2247A
+**Session:** ses-0001
+**Run:** run-01
+
+### Aim for Day 2
+
+The aim of Day 2 was to continue preprocessing of the pilot participant from the filtered Day 1 dataset, complete Tier 1 artefact rejection using the EEG MMN tutorial approach, re-inspect the cleaned epoched dataset, and perform robust averaging across conditions.
+
+### Starting point
+
+Day 2 began from the filtered Day 1 file:
+
+`flp_fhp_dbe2_sub-2247A_run-01.mat`
+
+This file had already undergone:
+
+* corrected epoching (`-100 to +300 ms`)
+* baseline correction (`-100 to 0 ms`)
+* downsampling to `200 Hz`
+* high-pass filtering at `0.5 Hz`
+* low-pass filtering at `20 Hz`
+
+Previously identified bad channels from Day 1:
+
+* `MEG1121`
+* `MEG0721`
+* `MEG1821`
+
+### Steps completed
+
+#### 1. Tier 1 artefact rejection
+
+Ran artefact rejection using the EEG MMN tutorial method in SPM.
+
+**Batch settings:**
+
+* **Bad channel threshold:** `0.2`
+* **Append:** `yes`
+* **Excision window:** `400`
+* **Detection algorithm:** `threshold channels`
+* **Threshold:** `11000`
+
+This step generated an artefact-marked dataset with bad trials flagged for exclusion from subsequent averaging.
+
+#### 2. Re-inspection of the cleaned epoched dataset
+
+After artefact rejection, the cleaned epoched dataset was re-opened and visually reviewed.
+
+Checks focused on:
+
+* whether the threshold behaved sensibly
+* whether flagged trials looked appropriately noisier than retained trials
+* whether the cleaned file was suitable for averaging
+
+The dataset appeared acceptable for progression to the next stage.
+
+#### 3. Robust averaging
+
+Performed robust averaging on the artefact-marked dataset to generate condition-wise averages for:
+
+* `Standard`
+* `Pitch Deviant`
+* `Duration Deviant`
+
+### End-of-day status
+
+By the end of Day 2, the pilot participant had completed the preprocessing pipeline through to the averaging stage.
+
+Completed stages:
+
+1. corrected epoching
+2. baseline correction
+3. downsampling
+4. filtering
+5. bad channel identification
+6. Tier 1 artefact rejection
+7. cleaned dataset review
+8. robust averaging
+
+### Outcome
+
+The pilot preprocessing pipeline was successfully completed through condition-wise averaging, providing a full pilot run-through of the intended preprocessing workflow before applying it to the healthy control cohort.
