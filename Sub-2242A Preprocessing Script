@@ -1,0 +1,174 @@
+%% Full preprocessing completion script for sub-2242A
+% Date: 22 June 2026
+% Aim:
+% Complete second-pass preprocessing for sub-2242A:
+% 1. mark bad channels
+% 2. calibrate artefact threshold
+% 3. run artefact rejection
+% 4. inspect bad-trial counts
+% 5. run robust averaging
+% 6. add extra rogue channels if needed
+% 7. rerun averaging
+
+clear; clc;
+
+%% Setup
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+preqc_file = fullfile(workdir, 'flp_fhp_dbe_sub-2242A_run-01.mat');
+art_file   = fullfile(workdir, 'aflp_fhp_dbe_sub-2242A_run-01.mat');
+avg_file   = fullfile(workdir, 'maflp_fhp_dbe_sub-2242A_run-01.mat');
+
+%% 1. Load pre-QC dataset
+D = spm_eeg_load(preqc_file);
+
+%% 2. Save initial bad-channel set
+labels = chanlabels(D);
+target = {'MEG0731','MEG1421','MEG1431','MEG2621','MEG2631'};
+idx = find(ismember(labels, target));
+
+D = badchannels(D, ':', 0);
+D = badchannels(D, idx, 1);
+save(D);
+
+disp('Initial bad channels saved:')
+disp(chanlabels(D, badchannels(D)))
+
+%% 3. Threshold calibration
+D = spm_eeg_load(preqc_file);
+
+goodch = setdiff(1:D.nchannels, badchannels(D));
+mx_trial = zeros(D.ntrials,1);
+
+for tr = 1:D.ntrials
+    dat = D(goodch,:,tr);
+    mx_trial(tr) = max(abs(dat(:)));
+end
+
+disp('Percentiles of maximum absolute trial amplitude:')
+disp(prctile(mx_trial,[90 95 97.5 99 99.5]))
+
+disp(['Maximum value across trials: ' num2str(max(mx_trial))])
+
+disp(['Trials exceeding 250000: ' num2str(sum(mx_trial > 250000))])
+disp(['Percent exceeding 250000: ' num2str(100 * sum(mx_trial > 250000) / numel(mx_trial))])
+
+disp(['Trials exceeding 500000: ' num2str(sum(mx_trial > 500000))])
+disp(['Percent exceeding 500000: ' num2str(100 * sum(mx_trial > 500000) / numel(mx_trial))])
+
+disp(['Trials exceeding 1000000: ' num2str(sum(mx_trial > 1000000))])
+disp(['Percent exceeding 1000000: ' num2str(100 * sum(mx_trial > 1000000) / numel(mx_trial))])
+
+% Selected threshold for this participant:
+threshold = 500000;
+
+%% 4. Artefact rejection
+S = [];
+S.D = preqc_file;
+S.mode = 'reject';
+S.badchanthresh = 0.2;
+S.append = true;
+S.methods.channels{1}.chan = 'all';
+S.methods.channels{1}.fun = 'threshchan';
+S.methods.channels{1}.settings.threshold = threshold;
+S.methods.channels{1}.settings.excwin = 400;
+S.prefix = 'a';
+
+D_art = spm_eeg_artefact(S);
+
+%% 5. Count bad trials
+D_art = spm_eeg_load(art_file);
+
+bt = badtrials(D_art);
+
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+disp(['Total trials: ' num2str(D_art.ntrials)])
+disp(['Bad trials: ' num2str(sum(bt))])
+disp(['Good trials: ' num2str(sum(~bt))])
+
+%% 6. Count bad trials by condition
+conds = string(conditions(D_art))';
+u = unique(conds);
+
+bad_counts = zeros(numel(u),1);
+good_counts = zeros(numel(u),1);
+total_counts = zeros(numel(u),1);
+
+for i = 1:numel(u)
+    sel = conds == u(i);
+    total_counts(i) = sum(sel);
+    bad_counts(i) = sum(bt(sel));
+    good_counts(i) = sum(sel & ~bt);
+end
+
+disp(table(u, total_counts, bad_counts, good_counts, ...
+    'VariableNames', {'Condition','TotalTrials','BadTrials','GoodTrials'}))
+
+%% 7. Initial robust averaging
+S = [];
+S.D = art_file;
+S.robust = 1;
+S.robust.ks = 3;
+S.robust.bycondition = 1;
+S.robust.savew = 1;
+S.removebad = 1;
+S.plv = 0;
+S.updatehistory = 1;
+S.prefix = 'm';
+
+D_avg = spm_eeg_average(S);
+
+%% 8. Add two extra rogue channels found after averaging
+D_art = spm_eeg_load(art_file);
+
+labels = chanlabels(D_art);
+target_final = {'MEG0321','MEG0731','MEG1421','MEG1431','MEG1631','MEG2621','MEG2631'};
+idx_final = find(ismember(labels, target_final));
+
+D_art = badchannels(D_art, ':', 0);
+D_art = badchannels(D_art, idx_final, 1);
+save(D_art);
+
+disp('Final bad channels saved:')
+disp(chanlabels(D_art, badchannels(D_art)))
+
+%% 9. Rerun robust averaging after final channel update
+S = [];
+S.D = art_file;
+S.robust = 1;
+S.robust.ks = 3;
+S.robust.bycondition = 1;
+S.robust.savew = 1;
+S.removebad = 1;
+S.plv = 0;
+S.updatehistory = 1;
+S.prefix = 'm';
+
+D_avg = spm_eeg_average(S);
+
+%% 10. Inspect final averaged dataset
+D_avg = spm_eeg_load(avg_file);
+
+disp('Final averaged dataset:')
+disp(D_avg)
+disp(['Number of averaged conditions: ' num2str(D_avg.ntrials)])
+disp(unique(string(conditions(D_avg)))')
+
+spm_eeg_review(D_avg);
+
+disp('sub-2242A fully preprocessed.')
+disp(['Artefact-marked file: ' art_file])
+disp(['Final averaged file: ' avg_file])
