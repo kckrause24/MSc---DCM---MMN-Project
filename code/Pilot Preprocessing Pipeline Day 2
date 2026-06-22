@@ -1,0 +1,126 @@
+%% Day 2 Pilot Preprocessing Script
+% Participant: sub-2247A
+% Session: ses-0001
+% Run: run-01
+% Date: 16 June 2026
+%
+% Aim:
+% Continue preprocessing from the filtered Day 1 dataset,
+% perform Tier 1 artefact rejection using the EEG MMN tutorial method,
+% re-inspect the cleaned dataset, and run robust averaging.
+
+clear; clc;
+
+%% Paths and setup
+addpath('/Users/klauskrause/Documents/MATLAB/spm');
+spm('defaults','eeg');
+spm_jobman('initcfg');
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test';
+cd(workdir);
+
+day1_file = fullfile(workdir, 'flp_fhp_dbe2_sub-2247A_run-01.mat');
+
+%% 1. Load filtered Day 1 dataset
+D = spm_eeg_load(day1_file);
+
+disp('Starting Day 2 from:')
+disp(D)
+disp(['Trials: ' num2str(D.ntrials)])
+disp(['Sampling rate: ' num2str(D.fsample) ' Hz'])
+disp(unique(string(conditions(D)))')
+
+%% 2. Mark bad channels identified on Day 1
+labels = chanlabels(D);
+target = {'MEG1121','MEG0721','MEG1821'};
+idx = find(ismember(labels, target));
+
+D = badchannels(D, ':', 0);   % clear any existing flags first
+D = badchannels(D, idx, 1);   % set intended bad channels
+save(D);
+
+disp('Saved bad channels:')
+disp(chanlabels(D, badchannels(D)))
+
+%% 3. Tier 1 artefact rejection
+S = [];
+S.D = fullfile(workdir, 'flp_fhp_dbe2_sub-2247A_run-01.mat');
+S.mode = 'reject';
+S.badchanthresh = 0.2;
+S.append = true;
+S.methods.channels{1}.chan = 'all';
+S.methods.channels{1}.fun = 'threshchan';
+S.methods.channels{1}.settings.threshold = 11000;
+S.methods.channels{1}.settings.excwin = 400;
+S.prefix = 'a';
+
+D_art = spm_eeg_artefact(S);
+
+disp('Artefact-marked dataset created:')
+disp(D_art)
+
+%% 4. Count bad trials
+D_art = spm_eeg_load(fullfile(workdir, D_art.fname));
+
+bt = badtrials(D_art);
+
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+disp(['Total trials: ' num2str(D_art.ntrials)])
+disp(['Bad trials: ' num2str(sum(bt))])
+disp(['Good trials: ' num2str(sum(~bt))])
+
+%% 5. Count bad trials by condition
+conds = string(conditions(D_art))';
+u = unique(conds);
+
+bad_counts = zeros(numel(u),1);
+good_counts = zeros(numel(u),1);
+total_counts = zeros(numel(u),1);
+
+for i = 1:numel(u)
+    sel = conds == u(i);
+    total_counts(i) = sum(sel);
+    bad_counts(i) = sum(bt(sel));
+    good_counts(i) = sum(sel & ~bt);
+end
+
+disp(table(u, total_counts, bad_counts, good_counts, ...
+    'VariableNames', {'Condition','TotalTrials','BadTrials','GoodTrials'}))
+
+%% 6. Re-inspect cleaned dataset
+spm_eeg_review(D_art);
+
+%% 7. Robust averaging
+S = [];
+S.D = fullfile(workdir, D_art.fname);
+S.robust = 1;
+S.robust.ks = 3;
+S.robust.bycondition = 1;
+S.robust.savew = 1;
+S.plv = 0;
+S.updatehistory = 1;
+S.prefix = 'm';
+
+D_avg = spm_eeg_average(S);
+
+disp('Averaged dataset created:')
+disp(D_avg)
+
+%% 8. Inspect averaged output
+D_avg = spm_eeg_load(fullfile(workdir, D_avg.fname));
+
+disp(['Number of averaged conditions: ' num2str(D_avg.ntrials)])
+disp(unique(string(conditions(D_avg)))')
+
+spm_eeg_review(D_avg);
+
+disp('Day 2 complete.')
+disp(['Artefact-marked file: ' D_art.fname])
+disp(['Averaged file: ' D_avg.fname])
