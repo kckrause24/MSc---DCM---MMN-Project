@@ -1,0 +1,40 @@
+## Wednesday 3rd June 2026
+
+### Supervisor meeting: preprocessing pipeline review
+
+Today I had a meeting with my supervisor in which I presented a document outlining the proposed preprocessing pipeline for the MEG MMN dataset.
+
+Overall, the preprocessing choices were broadly validated, with several important refinements and action points identified.
+
+### Key takeaways
+
+* **Epoch window:** update to **-100 ms to 300 ms**
+
+  * This was considered appropriate because the interval between stimulus onsets is approximately **330 ms**
+  * This window should capture the response of interest without overlapping with the next stimulus
+
+* **Channel selection:** analyse **MEG channels only**
+
+* **Downsampling:** **200 Hz** is acceptable as a starting point
+
+* **Filtering:**
+
+  * Check the filtering settings used in the original paper from which the dataset was derived
+  * Match those settings as closely as possible
+  * If the original study already filtered out frequencies above **50 Hz**, then a separate **notch filter** should **not** be used
+
+* **Artefact removal:**
+
+  * Use the **SPM EEG MMN tutorial** as the main reference point
+  * Follow the artefact rejection method used in that tutorial as the starting approach for this project
+
+### Outcome
+
+The proposed preprocessing pipeline was broadly approved.
+
+The main actions from the meeting were:
+
+1. change the epoch window to **-100 ms to 300 ms**
+2. restrict the analysis to **MEG channels**
+3. confirm filtering choices against the original source paper
+4. use the **SPM EEG MMN tutorial** as the reference method for artefact rejection
