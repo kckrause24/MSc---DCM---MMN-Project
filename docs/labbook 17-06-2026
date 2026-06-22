@@ -1,0 +1,35 @@
+Wednesday 17th June 2026
+Today I had a supervisor meeting with Richard, during which I walked him through the pilot preprocessing pipeline and showed him the resulting averaged condition outputs from the pilot participant.
+Main feedback from the meeting
+1. Confirm the artefact rejection excision window
+Richard confirmed that the excision window should be 400 ms, matching the full epoch length. This means that when a trial is flagged as bad during artefact rejection, the whole epoch is treated consistently rather than only part of it.
+2. Check the scalp topographies of the deviant conditions
+He also noted that the outputs across the deviant conditions should appear roughly symmetric in the scalp topography. This was discussed as a useful sanity check when reviewing the pilot averages and later participant-level outputs.
+3. Source reconstruction and DCM fitting should be treated as one connected modelling step
+A major discussion point was that source reconstruction and DCM fitting should not be treated as two fully separate stages, but rather as part of one integrated modelling process.
+The reasoning was that if source reconstruction is performed as a fully separate step first, then one specific source solution is effectively fixed before the DCM ever sees the data. In that situation, the DCM is forced to accept those source assumptions as given, instead of estimating the source-to-sensor mapping jointly with the neuronal model.
+Why this matters
+A fully separate source reconstruction already commits the analysis to assumptions such as:
+•	where the sources are located
+•	how many sources there are
+•	what their orientations are
+•	what source time series have been extracted
+If those fixed source time series are then passed into a later modelling stage, the DCM is no longer asking:
+What combination of source dynamics and source-to-sensor mapping best explains the MEG data?
+Instead, it is only asking:
+Given these already chosen source signals, what connectivity model explains them?
+This is a weaker and more constrained question.
+Why treating them as separate is problematic
+Richard’s objection was that DCM for EEG/MEG is supposed to be a single generative model with two coupled parts:
+•	the neuronal model, which describes how hidden cortical sources interact
+•	the forward model, which describes how those hidden sources project to the measured sensor data
+The key point is not that the forward model is absent, but that it should remain inside the inversion process, rather than being fixed outside it in advance.
+What “carrying fixed assumptions into the analysis” means
+This means that if source reconstruction is done first as an independent step, the analysis freezes assumptions such as:
+1.	these are definitely the correct source locations
+2.	these are definitely the correct source orientations
+3.	these are definitely the correct source waveforms
+The DCM then has no opportunity to revise those assumptions in light of the connectivity model and the observed sensor data.
+Richard’s point was that this is undesirable because source estimation and connectivity estimation should inform each other.
+
+
