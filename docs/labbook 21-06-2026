@@ -1,0 +1,64 @@
+## Sunday 21st June 2026
+
+### Objective
+
+Today’s aim was to batch the fixed steps of the preprocessing pipeline and run those batched pre-QC steps on the first 10 healthy controls.
+
+### Work completed
+
+A reusable fixed pre-QC script was used to process the first 10 healthy controls through:
+
+* continuous conversion
+* trial definition
+* epoched conversion
+* baseline correction
+* downsampling
+* high-pass filtering
+* low-pass filtering
+
+Each participant produced a final filtered pre-QC output file.
+
+### Tracking table: first 10 healthy controls completed through fixed pre-QC pipeline
+
+| Participant ID | Pre-QC file                      | Trial count | Original sampling rate | Key notes                                                                                                                                                   |
+| -------------- | -------------------------------- | ----------: | ---------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| sub-2221A      | flp_fhp_dbe_sub-2221A_run-01.mat |        1501 |                1000 Hz | Fixed pre-QC pipeline completed successfully. One extra detected trial relative to the expected 1500.                                                       |
+| sub-2242A      | flp_fhp_dbe_sub-2242A_run-01.mat |        1500 |                1000 Hz | Fixed pre-QC pipeline completed successfully. No major warning noted at this stage.                                                                         |
+| sub-2253A      | flp_fhp_dbe_sub-2253A_run-01.mat |        1333 |                3000 Hz | Fixed pre-QC pipeline completed. Warning at epoched conversion: one or more final trials were out of bounds and not read. Flagged for careful later review. |
+| sub-2259A      | flp_fhp_dbe_sub-2259A_run-01.mat |        1247 |                3000 Hz | Fixed pre-QC pipeline completed. Warning at epoched conversion: one or more final trials were out of bounds and not read. Flagged for careful later review. |
+| sub-2262A      | flp_fhp_dbe_sub-2262A_run-01.mat |        1326 |                3000 Hz | Fixed pre-QC pipeline completed successfully. Trial count was lower than 1500, but no out-of-bounds warning was observed in the run log.                    |
+| sub-2268A      | flp_fhp_dbe_sub-2268A_run-01.mat |        1326 |                3000 Hz | Fixed pre-QC pipeline completed. Warning at epoched conversion: one or more final trials were out of bounds and not read. Flagged for careful later review. |
+| sub-2269A      | flp_fhp_dbe_sub-2269A_run-01.mat |        1327 |                3000 Hz | Fixed pre-QC pipeline completed. Warning at epoched conversion: one or more final trials were out of bounds and not read. Flagged for careful later review. |
+| sub-2286A      | flp_fhp_dbe_sub-2286A_run-01.mat |        1500 |                3000 Hz | Fixed pre-QC pipeline completed successfully. Warning noted that electrode locations could not be obtained automatically.                                   |
+| sub-2320A      | flp_fhp_dbe_sub-2320A_run-01.mat |        1329 |                3000 Hz | Fixed pre-QC pipeline completed. Warning at epoched conversion: one or more final trials were out of bounds and not read. Flagged for careful later review. |
+| sub-2328A      | flp_fhp_dbe_sub-2328A_run-01.mat |        1500 |                3000 Hz | Fixed pre-QC pipeline completed successfully. No major warning noted at this stage.                                                                         |
+
+### Summary of first-pass batching outcome
+
+The fixed pre-QC batching stage was completed successfully for 10 healthy controls. All 10 participants were processed through the standardised pre-QC steps and produced final filtered pre-QC datasets.
+
+Trial counts varied across participants:
+
+* 3 participants had exactly **1500 trials**
+* 1 participant had **1501 trials**
+* several participants had lower trial counts in the **1247-1333** range
+
+A subset of participants showed out-of-bounds warnings during epoched conversion, suggesting that one or more final epochs could not be fully read at the end of the recording.
+
+### Participants prioritised for second-pass QC
+
+* `sub-2253A`
+* `sub-2259A`
+* `sub-2268A`
+* `sub-2269A`
+* `sub-2320A`
+
+### Next steps
+
+1. bad channel review
+2. artefact rejection using the revised **400 ms** excision window
+3. robust averaging by condition
+
+### Outcome
+
+The first-pass batched preprocessing stage was successfully completed for the first 10 healthy controls, establishing the datasets required for second-pass QC and averaging.
