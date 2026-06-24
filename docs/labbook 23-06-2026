@@ -1,0 +1,88 @@
+# MSc Project Lab Book Entry
+
+## Tuesday 23 June 2026
+
+### Main objective
+Fully preprocess the next five healthy-control MEG participants from the fixed pre-QC stage through manual bad-channel review, participant-specific artefact rejection, robust condition-wise averaging, and post-average visual QC.
+
+### Participants processed today
+- `sub-2286A`
+- `sub-2328A`
+- `sub-2221A`
+- `sub-2262A`
+- `sub-2253A`
+
+### Working directory
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm
+```
+
+### Starting point
+Each participant started from the fixed pre-QC output:
+
+```text
+flp_fhp_dbe_<subject>_run-01.mat
+```
+
+These files had already been epoched, baseline-corrected, downsampled, high-pass filtered, and low-pass filtered. Today's work was the second-pass participant-level QC and averaging stage.
+
+---
+
+## Methods used today
+
+### Manual bad-channel review
+A structured visual review was performed across Standard, Pitch Deviant, and Duration Deviant trials. The working rule was:
+
+> Mark a channel as bad if it appeared abnormal in approximately 50% of inspected trials and appeared across more than one condition type.
+
+Channels that appeared only occasionally, or only in one condition, were kept on a watch-list unless they later dominated the averaged outputs.
+
+### Artefact rejection
+Artefact rejection was run using SPM `spm_eeg_artefact` with a participant-specific threshold. The threshold was chosen as approximately the 97.5th percentile of maximum absolute trial amplitude across currently good MEG channels.
+
+SPM artefact settings:
+
+```text
+mode: reject
+badchanthresh: 0.2
+append: true
+channels: MEG
+method: threshchan
+excwin: 400 ms
+prefix: a
+```
+
+### Robust averaging
+Robust condition-wise averaging was performed after artefact rejection.
+
+```text
+robust averaging: on
+ks: 3
+bycondition: 1
+savew: 1
+removebad: 1
+plv: 0
+prefix: m
+```
+
+### Additional averaged-output QC
+After robust averaging, the three condition averages were inspected visually. When averages looked suspicious, ranked-channel QC was run to identify channels with the largest maximum absolute amplitudes in each condition. Additional channels were added only when they clearly dominated the averages or appeared consistently across multiple conditions.
+
+---
+
+## Summary table
+
+| Participant | Total trials | Threshold | Rejected trials | Good trials | Final bad channels | Final decision |
+|---|---:|---:|---:|---:|---|---|
+| `sub-2286A` | 1500 | 13000 | 38 / 1500 (2.53%) | 1462 | MEG1531, MEG1541 | Retained. Averages inspected and judged acceptable; deviant scalp layouts broadly symmetrical. Note: pre-QC had electrode-location warning for later source/DCM stage. |
+| `sub-2328A` | 1500 | 16698 | 37 / 1500 (2.47%) | 1463 | MEG0731, MEG1831 | Retained. Averages inspected and judged acceptable; no additional rogue channels added. |
+| `sub-2221A` | 1501 | 8161 | 38 / 1501 (2.53%) | 1463 | MEG1331, MEG1811, MEG1821, MEG2221, MEG2421, MEG2611 | Retained. Extra 1501st trial was Pitch Deviant. Initial averages were borderline; ranked-channel QC showed MEG2421 and MEG2611 dominated, so they were added. Final deviant averages acceptable. |
+| `sub-2262A` | 1326 | 4449 | 33 / 1326 (2.49%) | 1293 | MEG1631, MEG1841, MEG1911, MEG2131 | Retained. Lower total trial count but deviant counts remained usable. MEG2131 was added after visual averaged-output QC. Final averages acceptable. |
+| `sub-2253A` | 1332 | 10774 | 33 / 1332 (2.48%) | 1299 | MEG0531, MEG0541, MEG0611, MEG1141, MEG1711, MEG1741, MEG1831, MEG1841, MEG1911, MEG2011, MEG2031, MEG2041, MEG2141 | Retained but flagged as lower-quality / borderline. Several additional bad channels were added using ranked-channel QC and repeated averaged-output inspection. Stopped further removal to avoid over-cleaning. |
+
+---
+
+## Condition-wise trial counts after artefact rejection
+
+| Participant | Standard good | Pitch Deviant good | Duration Deviant good |
+|---|---:|-
