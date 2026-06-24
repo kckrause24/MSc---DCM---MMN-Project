@@ -1,0 +1,118 @@
+# MSc Project Lab Book Entry
+
+## Wednesday 24 June 2026
+
+### Objective
+Fully preprocess one healthy-control participant, `sub-2259A`, from the filtered pre-QC file through manual bad-channel review, participant-specific artefact rejection, robust averaging, averaged-condition inspection, and final preprocessing decision.
+
+### Participant and input files
+
+| Field | Details |
+|---|---|
+| Participant | `sub-2259A` |
+| Run | `run-01` |
+| Working directory | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm` |
+| Starting file | `flp_fhp_dbe_sub-2259A_run-01.mat` |
+| Artefact-marked file | `aflp_fhp_dbe_sub-2259A_run-01.mat` |
+| Final averaged file | `maflp_fhp_dbe_sub-2259A_run-01.mat` |
+| Verified total trials | 1246 |
+| Pre-QC note | Lower trial count than ideal; previous out-of-bounds warning during fixed pre-QC. |
+
+### Manual bad-channel review
+
+A structured sample of Standard, Pitch Deviant, and Duration Deviant trials was inspected visually in SPM. The decision rule was to mark a channel bad if it appeared abnormal in approximately 50% of inspected trials and appeared across more than one condition type, while allowing judgement for channels that repeatedly affected deviant trials.
+
+| Condition | Inspected trials | Main abnormal channels observed | Interpretation |
+|---|---|---|---|
+| Standard | 1, 208, 417, 625, 831, 1039, 1246 | `MEG1821` on trial 1. `MEG2131`, `MEG2541`, `MEG2511`, and `MEG2331` appeared only on trial 208. | `MEG1821` considered relevant; the other channels were treated as one-off standard-only observations. |
+| Pitch Deviant | 4, 391, 928, 1243 | `MEG1821` on trials 928 and 1243. | Supports marking `MEG1821` because it recurred in deviant trials. |
+| Duration Deviant | 24, 416, 787, 1238 | `MEG1821` on trials 24, 787, and 1238. | Supports marking `MEG1821` because it recurred in another deviant condition. |
+
+Initial and final bad-channel decision:
+
+```text
+MEG1821
+```
+
+Channels `MEG2131`, `MEG2541`, `MEG2511`, and `MEG2331` were not marked bad because they appeared only once in a Standard trial and did not recur across conditions.
+
+### Artefact-threshold calibration
+
+After saving `MEG1821` as bad, the maximum absolute trial amplitude was calculated across the remaining good MEG channels. The threshold was selected using the current standardised rule: approximately the 97.5th percentile of maximum absolute trial amplitude.
+
+| Candidate threshold | Rejected trials | Rejected percentage | Decision |
+|---:|---:|---:|---|
+| 9696 | 62 / 1246 | 4.98% | Too liberal. |
+| 12427 | 31 / 1246 | 2.49% | Selected 97.5th percentile threshold. |
+| 21912 | 12 / 1246 | 0.96% | Too conservative. |
+| 40536 | 6 / 1246 | 0.48% | Too conservative. |
+
+Selected threshold:
+
+```text
+12427
+```
+
+### Artefact rejection result
+
+Artefact rejection was run using SPM `threshchan`, with `badchanthresh = 0.2`, `append = true`, and a 400 ms excision window.
+
+| Condition | Total trials | Bad trials | Good trials |
+|---|---:|---:|---:|
+| Standard | 998 | 25 | 973 |
+| Pitch Deviant | 123 | 4 | 119 |
+| Duration Deviant | 125 | 2 | 123 |
+| Total | 1246 | 31 | 1215 |
+
+Overall rejection rate: 31 / 1246 trials = 2.49%.
+
+### Robust averaging
+
+Robust averaging was run by condition using the established project settings:
+
+```text
+S.robust.ks = 3
+S.robust.bycondition = 1
+S.robust.savew = 1
+S.removebad = 1
+S.plv = 0
+S.prefix = 'm'
+```
+
+The resulting averaged file was:
+
+```text
+maflp_fhp_dbe_sub-2259A_run-01.mat
+```
+
+Averaged event counts were:
+
+| Averaged condition | Events included |
+|---|---:|
+| Standard | 973 |
+| Pitch Deviant | 119 |
+| Duration Deviant | 123 |
+
+### Averaged-condition QC
+
+The averaged Standard, Pitch Deviant, and Duration Deviant conditions were inspected visually in SPM. `MEG1821` was greyed/removed as expected. The deviant conditions were not perfectly symmetrical, but they were judged roughly bilateral and acceptable. No additional rogue channels were identified after averaging.
+
+### Final decision
+
+`sub-2259A` was retained and marked as fully preprocessed. The participant has fewer trials than ideal, but the remaining deviant trial counts were considered usable and the averaged conditions were judged acceptable for onward analysis.
+
+Final preprocessing summary:
+
+| Field | Value |
+|---|---|
+| Participant | `sub-2259A` |
+| Final bad channels | `MEG1821` |
+| Artefact threshold | 12427 |
+| Total trials | 1246 |
+| Bad trials | 31 |
+| Good trials | 1215 |
+| Final averaged file | `maflp_fhp_dbe_sub-2259A_run-01.mat` |
+| Final decision | Retained; fully preprocessed. Lower trial count than ideal but acceptable after QC. |
+
+### Next step
+Continue the second-pass healthy-control preprocessing workflow with the next lower-trial-count or flagged participant. A suitable next candidate is `sub-2268A` or another pre-QC-completed participant from the first-10 healthy-control set.
