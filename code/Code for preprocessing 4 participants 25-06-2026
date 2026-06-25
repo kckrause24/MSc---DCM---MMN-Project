@@ -1,0 +1,607 @@
+# Code Used - Thursday 25 June 2026
+
+MSc project: **Neurotransmitter Receptor-Informed Dynamic Causal Modelling of Auditory MEG Responses**
+
+This file records the MATLAB/SPM code pattern used for the four participants preprocessed on Thursday 25 June 2026:
+
+- `sub-2268A`
+- `sub-2269A`
+- `sub-2320A`
+- `sub-2342A`
+
+## Participant-specific final values
+
+| Participant | Initial bad channels | Added after ranked QC | Final bad channels | Threshold | Final status |
+|---|---|---|---|---:|---|
+| `sub-2268A` | `MEG1711`, `MEG1741`, `MEG2041` | None | `MEG1711`, `MEG1741`, `MEG2041` | 11444 | Retained, borderline-clean |
+| `sub-2269A` | `MEG1011`, `MEG1911` | None | `MEG1011`, `MEG1911` | 30712 | Retained, borderline/noisy |
+| `sub-2320A` | `MEG1111`, `MEG1841` | `MEG0721` | `MEG0721`, `MEG1111`, `MEG1841` | 11997 | Retained, borderline/lower-quality |
+| `sub-2342A` | `MEG1911`, `MEG2231` | None | `MEG1911`, `MEG2231` | 9682 | Retained, acceptable/mildly borderline |
+
+---
+
+## 1. Fixed pre-QC generation if the pre-QC file is missing
+
+This was required for `sub-2342A`, whose fixed pre-QC file did not already exist.
+
+```matlab
+%% Fixed pre-QC generation if needed
+% Edit subj only.
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+subj = 'sub-2342A';
+runname = 'run-01';
+
+dataset_root = '/Users/klauskrause/Desktop/ds004837';
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+
+rawfile = fullfile(dataset_root, subj, 'ses-0001', 'meg', ...
+    [subj '_ses-0001_task-attnmod_' runname '_meg.fif']);
+
+cd(workdir);
+
+continuous_name = ['spmeeg_' subj '_ses-0001_task-attnmod_' runname '_meg'];
+trialfile = fullfile(workdir, ['trialdef_' subj '_' runname '.mat']);
+epoch_name = ['e_' subj '_' runname];
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+
+if exist(preqc_file, 'file')
+    disp('Fixed pre-QC file already exists. Skipping fixed preprocessing.')
+    disp(['Existing pre-QC file: ' preqc_file])
+else
+    disp('Fixed pre-QC file does not exist. Running fixed preprocessing pipeline now.')
+
+    if ~exist(rawfile, 'file')
+        error(['Raw FIF file not found: ' rawfile])
+    end
+
+    %% 1. Convert raw FIF -> continuous SPM
+    S = [];
+    S.dataset = rawfile;
+    S.outfile = continuous_name;
+    S.channels = 'MEG';
+    S.mode = 'continuous';
+    D_cont = spm_eeg_convert(S);
+
+    %% 2. Define trials from STI101_up
+    D = spm_eeg_load(fullfile(workdir, [continuous_name '.mat']));
+    ev = events(D);
+
+    sel = strcmp({ev.type}, 'STI101_up');
+    vals_raw = {ev(sel).value};
+    vals = zeros(numel(vals_raw),1);
+
+    for k = 1:numel(vals_raw)
+        vals(k) = double(vals_raw{k});
+    end
+
+    times = [ev(sel).time]';
+
+    trl = [];
+    conditionlabels = {};
+
+    for k = 1:numel(vals)
+        if ismember(vals(k), [1 2 3])
+            onset_sample = round(times(k) * D.fsample);
+            start_sample = onset_sample + round((-100/1000) * D.fsample);
+            end_sample   = onset_sample + round((300/1000) * D.fsample);
+            offset = round((-100/1000) * D.fsample);
+
+            trl(end+1, :) = [start_sample end_sample offset]; %#ok<SAGROW>
+
+            if vals(k) == 1
+                conditionlabels{end+1,1} = 'Standard'; %#ok<SAGROW>
+            elseif vals(k) == 2
+                conditionlabels{end+1,1} = 'Pitch Deviant'; %#ok<SAGROW>
+            elseif vals(k) == 3
+                conditionlabels{end+1,1} = 'Duration Deviant'; %#ok<SAGROW>
+            end
+        end
+    end
+
+    save(trialfile, 'trl', 'conditionlabels');
+
+    disp('Checking trial definition file...')
+    disp(size(trl))
+    disp(conditionlabels(1:min(5,numel(conditionlabels))))
+
+    %% 3. Convert continuous -> epoched SPM
+    S = [];
+    S.dataset = fullfile(workdir, [continuous_name '.mat']);
+    S.outfile = epoch_name;
+    S.channels = 'MEG';
+    S.mode = 'epoched';
+    S.trl = trialfile;
+    S.conditionlabels = conditionlabels;
+    D_ep = spm_eeg_convert(S);
+
+    %% 4. Baseline correction
+    S = [];
+    S.D = fullfile(workdir, [epoch_name '.mat']);
+    S.timewin = [-100 0];
+    S.prefix = 'b';
+    D_bc = spm_eeg_bc(S);
+
+    %% 5. Downsample
+    S = [];
+    S.D = fullfile(workdir, D_bc.fname);
+    S.fsample_new = 200;
+    S.prefix = 'd';
+    D_ds = spm_eeg_downsample(S);
+
+    %% 6. High-pass filter
+    S = [];
+    S.D = fullfile(workdir, D_ds.fname);
+    S.band = 'high';
+    S.freq = 0.5;
+    S.type = 'butterworth';
+    S.dir = 'twopass';
+    S.prefix = 'fhp_';
+    D_hp = spm_eeg_filter(S);
+
+    %% 7. Low-pass filter
+    S = [];
+    S.D = fullfile(workdir, D_hp.fname);
+    S.band = 'low';
+    S.freq = 20;
+    S.type = 'butterworth';
+    S.dir = 'twopass';
+    S.prefix = 'flp_';
+    D_lp = spm_eeg_filter(S);
+
+    disp('Pre-QC fixed pipeline complete.')
+    disp(['Final pre-QC file: ' fullfile(workdir, D_lp.fname)])
+end
+
+D = spm_eeg_load(preqc_file);
+disp(D)
+```
+
+---
+
+## 2. Save initial bad channels and calibrate threshold
+
+Use index-based marking. Do not pass a cell array of labels directly to `badchannels`.
+
+```matlab
+%% Save initial bad channels and calibrate artefact threshold
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+subj = 'sub-2342A';
+runname = 'run-01';
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+
+D = spm_eeg_load(preqc_file);
+
+% Edit for each participant.
+initial_bad_labels = {'MEG1911','MEG2231'};
+
+labels = chanlabels(D);
+idx = find(ismember(labels, initial_bad_labels));
+
+disp('Requested initial bad channels:')
+disp(initial_bad_labels')
+
+disp('Matched initial bad channels:')
+disp(table(idx(:), labels(idx)', ...
+    'VariableNames', {'Index','ChannelLabel'}))
+
+if numel(idx) ~= numel(initial_bad_labels)
+    error('Not all initial bad-channel labels were found. Check labels before saving.');
+end
+
+D = badchannels(D, ':', 0);
+D = badchannels(D, idx, 1);
+save(D);
+
+disp('Initial bad channels saved:')
+disp(chanlabels(D, badchannels(D))')
+
+%% Threshold calibration
+D = spm_eeg_load(preqc_file);
+
+goodch = setdiff(1:D.nchannels, badchannels(D));
+mx_trial = zeros(D.ntrials,1);
+
+for tr = 1:D.ntrials
+    dat = D(goodch,:,tr);
+    mx_trial(tr) = max(abs(dat(:)));
+end
+
+disp('Percentiles of maximum absolute trial amplitude:')
+disp(prctile(mx_trial,[90 95 97.5 99 99.5]))
+
+disp(['Maximum value across trials: ' num2str(max(mx_trial))])
+
+candidate_thresholds = round(prctile(mx_trial,[95 97.5 99 99.5]));
+
+fprintf('\nPercentile-based candidate thresholds for %s\n', subj)
+fprintf('Total trials: %d\n\n', D.ntrials)
+
+for i = 1:numel(candidate_thresholds)
+    th = candidate_thresholds(i);
+    n_bad = sum(mx_trial > th);
+    pct_bad = 100 * n_bad / numel(mx_trial);
+    fprintf('Trials exceeding %d: %d / %d (%.2f%%)\n', ...
+        th, n_bad, numel(mx_trial), pct_bad);
+end
+```
+
+---
+
+## 3. Artefact rejection and condition-wise counts
+
+```matlab
+%% Artefact rejection and condition-wise count check
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+subj = 'sub-2342A';
+runname = 'run-01';
+
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+art_file   = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+
+D = spm_eeg_load(preqc_file);
+
+disp('Saved bad channels before artefact rejection:')
+disp(chanlabels(D, badchannels(D))')
+
+% Edit for each participant.
+threshold = 9682;
+
+S = [];
+S.D = preqc_file;
+S.mode = 'reject';
+S.badchanthresh = 0.2;
+S.append = true;
+S.methods(1).channels = {'MEG'};
+S.methods(1).fun = 'threshchan';
+S.methods(1).settings.threshold = threshold;
+S.methods(1).settings.excwin = 400;
+S.prefix = 'a';
+
+D_art = spm_eeg_artefact(S);
+
+disp('Artefact-marked dataset created:')
+disp(D_art)
+disp(['Expected artefact-marked file: ' art_file])
+
+%% Condition-wise count check
+D_art = spm_eeg_load(art_file);
+
+bt = badtrials(D_art);
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+fprintf('\nTrial rejection summary for %s\n', subj)
+fprintf('Threshold used: %d\n', threshold)
+fprintf('Total trials: %d\n', D_art.ntrials)
+fprintf('Bad trials: %d\n', sum(bt))
+fprintf('Good trials: %d\n', sum(~bt))
+fprintf('Percent rejected: %.2f%%\n', 100 * sum(bt) / D_art.ntrials)
+
+conds = string(conditions(D_art))';
+u = unique(conds);
+
+bad_counts = zeros(numel(u),1);
+good_counts = zeros(numel(u),1);
+total_counts = zeros(numel(u),1);
+
+for i = 1:numel(u)
+    sel = conds == u(i);
+    total_counts(i) = sum(sel);
+    bad_counts(i) = sum(bt(sel));
+    good_counts(i) = sum(sel & ~bt);
+end
+
+condition_table = table(u, total_counts, bad_counts, good_counts, ...
+    'VariableNames', {'Condition','TotalTrials','BadTrials','GoodTrials'});
+
+disp(condition_table)
+```
+
+---
+
+## 4. Robust averaging and visual review
+
+```matlab
+%% Robust averaging
+
+avg_file = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+S = [];
+S.D = art_file;
+S.robust = [];
+S.robust.ks = 3;
+S.robust.bycondition = 1;
+S.robust.savew = 1;
+S.removebad = 1;
+S.plv = 0;
+S.updatehistory = 1;
+S.prefix = 'm';
+
+D_avg = spm_eeg_average(S);
+
+disp('Averaged dataset created:')
+disp(D_avg)
+disp(['Expected averaged file: ' avg_file])
+
+D_avg = spm_eeg_load(avg_file);
+
+disp('Averaged dataset summary:')
+disp(D_avg)
+disp(['Number of averaged conditions: ' num2str(D_avg.ntrials)])
+disp(unique(string(conditions(D_avg)))')
+
+disp('Bad channels in averaged file:')
+disp(chanlabels(D_avg, badchannels(D_avg))')
+
+disp('Averaged condition order:')
+for tr = 1:D_avg.ntrials
+    fprintf('Trial %d = %s\n', tr, char(conditions(D_avg, tr)));
+end
+
+spm_eeg_review(D_avg);
+```
+
+---
+
+## 5. Ranked-channel QC after averaging
+
+```matlab
+%% Ranked-channel QC
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+subj = 'sub-2342A';
+runname = 'run-01';
+
+avg_file = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+D_avg = spm_eeg_load(avg_file);
+
+labels = chanlabels(D_avg);
+bad_idx = badchannels(D_avg);
+good_idx = setdiff(1:D_avg.nchannels, bad_idx);
+
+% Edit as needed for the participant.
+watch_list = {'MEG1011','MEG0611','MEG2041'};
+
+fprintf('\nAveraged file: %s\n', avg_file)
+
+disp('Current bad channels:')
+disp(chanlabels(D_avg, bad_idx)')
+
+disp('Averaged condition order:')
+for tr = 1:D_avg.ntrials
+    fprintf('Trial %d = %s\n', tr, char(conditions(D_avg, tr)));
+end
+
+for tr = 1:D_avg.ntrials
+    cond_name = char(conditions(D_avg, tr));
+    dat = D_avg(good_idx,:,tr);
+    mx = max(abs(dat), [], 2);
+
+    [sorted_mx, order] = sort(mx, 'descend');
+    top_idx = good_idx(order(1:min(20,numel(order))));
+    top_labels = labels(top_idx)';
+
+    fprintf('\nCondition %d: %s\n', tr, cond_name)
+    disp(table(top_labels, sorted_mx(1:numel(top_labels)), ...
+        'VariableNames', {'Channel','MaxAbsAmplitude'}))
+
+    overlap = intersect(top_labels, watch_list);
+    if ~isempty(overlap)
+        disp('Watch-list channels appearing among largest channels:')
+        disp(overlap')
+    else
+        disp('No watch-list channels among largest channels.')
+    end
+end
+```
+
+---
+
+## 6. Add a final bad channel and rerun averaging when justified
+
+This was used for `sub-2320A`, where `MEG0721` was added after ranked-channel QC.
+
+```matlab
+%% Add final bad channels and rerun robust averaging
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+subj = 'sub-2320A';
+runname = 'run-01';
+
+art_file = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+avg_file = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+D_art = spm_eeg_load(art_file);
+
+final_bad_labels = {'MEG1111','MEG1841','MEG0721'};
+
+labels = chanlabels(D_art);
+idx_final = find(ismember(labels, final_bad_labels));
+
+disp('Requested final bad channels:')
+disp(final_bad_labels')
+
+disp('Matched final bad channels:')
+disp(table(idx_final(:), labels(idx_final)', ...
+    'VariableNames', {'Index','ChannelLabel'}))
+
+if numel(idx_final) ~= numel(final_bad_labels)
+    error('Not all final bad-channel labels were found. Check labels before saving.');
+end
+
+D_art = badchannels(D_art, ':', 0);
+D_art = badchannels(D_art, idx_final, 1);
+save(D_art);
+
+disp('Final bad channels saved in artefact-marked file:')
+disp(chanlabels(D_art, badchannels(D_art))')
+
+%% Delete previous averaged file before rerunning
+[avg_path, avg_name, ~] = fileparts(avg_file);
+avg_mat = fullfile(avg_path, [avg_name '.mat']);
+avg_dat = fullfile(avg_path, [avg_name '.dat']);
+
+if exist(avg_mat, 'file')
+    delete(avg_mat);
+    disp(['Deleted old average MAT file: ' avg_mat])
+end
+
+if exist(avg_dat, 'file')
+    delete(avg_dat);
+    disp(['Deleted old average DAT file: ' avg_dat])
+end
+
+%% Rerun robust averaging
+S = [];
+S.D = art_file;
+S.robust = [];
+S.robust.ks = 3;
+S.robust.bycondition = 1;
+S.robust.savew = 1;
+S.removebad = 1;
+S.plv = 0;
+S.updatehistory = 1;
+S.prefix = 'm';
+
+D_avg = spm_eeg_average(S);
+
+disp('New averaged dataset created:')
+disp(D_avg)
+disp(['Expected averaged file: ' avg_file])
+```
+
+---
+
+## 7. Final verification summary
+
+```matlab
+%% Final verification summary
+
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+
+subj = 'sub-2342A';
+runname = 'run-01';
+
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+art_file   = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+avg_file   = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+% Edit for each participant.
+threshold = 9682;
+
+D_art = spm_eeg_load(art_file);
+
+fprintf('\nFinal preprocessing summary for %s\n', subj)
+fprintf('Pre-QC file: %s\n', preqc_file)
+fprintf('Artefact-marked file: %s\n', art_file)
+fprintf('Final averaged file: %s\n', avg_file)
+fprintf('Artefact threshold used: %d\n', threshold)
+
+bad_idx = badchannels(D_art);
+bad_labels = chanlabels(D_art, bad_idx);
+
+disp('Final bad channels:')
+disp(bad_labels')
+
+bt = badtrials(D_art);
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+fprintf('Total trials: %d\n', D_art.ntrials)
+fprintf('Bad trials: %d\n', sum(bt))
+fprintf('Good trials: %d\n', sum(~bt))
+fprintf('Percent rejected: %.2f%%\n', 100 * sum(bt) / D_art.ntrials)
+
+conds = string(conditions(D_art))';
+u = unique(conds);
+bad_counts = zeros(numel(u),1);
+good_counts = zeros(numel(u),1);
+total_counts = zeros(numel(u),1);
+
+for i = 1:numel(u)
+    sel = conds == u(i);
+    total_counts(i) = sum(sel);
+    bad_counts(i) = sum(bt(sel));
+    good_counts(i) = sum(sel & ~bt);
+end
+
+condition_table = table(u, total_counts, bad_counts, good_counts, ...
+    'VariableNames', {'Condition','TotalTrials','BadTrials','GoodTrials'});
+
+disp(condition_table)
+
+D_avg = spm_eeg_load(avg_file);
+
+fprintf('\nAveraged file check:\n')
+fprintf('Number of averaged conditions: %d\n', D_avg.ntrials)
+
+disp('Averaged condition order:')
+for tr = 1:D_avg.ntrials
+    fprintf('Trial %d = %s\n', tr, char(conditions(D_avg, tr)));
+end
+
+disp('Bad channels in final averaged file:')
+disp(chanlabels(D_avg, badchannels(D_avg))')
