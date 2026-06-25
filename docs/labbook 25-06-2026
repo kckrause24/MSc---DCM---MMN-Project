@@ -1,0 +1,84 @@
+# Lab Book Entry - Thursday 25 June 2026
+## Project
+**MSc project:** Neurotransmitter Receptor-Informed Dynamic Causal Modelling of Auditory MEG Responses
+**Dataset:** OpenNeuro ds004837, healthy control MEG data
+**Software:** MATLAB R2025b Update 5; SPM26 26.01.rc1
+**Working directory:** `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm`
+## Objectives
+Fully preprocess four additional healthy control participants through the second-pass QC pipeline: manual bad-channel review, participant-specific artefact rejection, robust averaging, ranked-channel QC, and final retention decision.
+## Participants completed today
+| Participant | Pre-QC status | Total trials | Final bad channels | Threshold | Bad trials | Good trials | Good trials by condition | Final status |
+|---|---|---:|---|---:|---:|---:|---|---|
+| `sub-2268A` | Existing fixed pre-QC file used | 1325 | MEG1711, MEG1741, MEG2041 | 11444 | 33 (2.49%) | 1292 | Standard 1031; Pitch 137; Duration 124 | Retained, borderline-clean. Ranked-channel QC showed distributed condition-specific noise; no additional channels added. |
+| `sub-2269A` | Existing fixed pre-QC file used | 1326 | MEG1011, MEG1911 | 30712 | 33 (2.49%) | 1293 | Standard 1037; Pitch 127; Duration 129 | Retained, borderline/noisy. Watch-list channels were not dominant after ranked-channel QC. |
+| `sub-2320A` | Existing fixed pre-QC file used | 1328 | MEG0721, MEG1111, MEG1841 | 11997 | 33 (2.48%) | 1295 | Standard 1033; Pitch 134; Duration 128 | Retained, borderline/lower-quality. MEG0721 was added after ranked-channel QC. Remaining Duration Deviant activity appeared distributed rather than one clear rogue channel. |
+| `sub-2342A` | Generated today; fixed pre-QC file was missing | 1329 | MEG1911, MEG2231 | 9682 | 33 (2.48%) | 1296 | Standard 1037; Pitch 137; Duration 122 | Retained, acceptable/mildly borderline. Pitch Deviant had higher visual scale, but ranked-channel QC did not identify a clear remaining rogue channel. |
+
+## Methods and QC decisions
+- Continued using the fixed pre-QC pipeline: raw FIF conversion, event-based epoching from `STI101_up`, baseline correction from -100 to 0 ms, downsampling to 200 Hz, high-pass filtering at 0.5 Hz, and low-pass filtering at 20 Hz.
+- Initial bad channels were selected only when a channel appeared repeatedly across the structured trial sample and across more than one condition type.
+- Bad channels were saved using index-based SPM marking to avoid the earlier issue where all MEG channels could be accidentally marked bad.
+- Participant-specific artefact thresholds were selected from the approximate 97.5th percentile of maximum absolute trial amplitude across currently good MEG channels. This produced approximately 2.5% trial rejection per participant.
+- Robust averaging was run by condition using `ks = 3`, `bycondition = 1`, `savew = 1`, and `removebad = 1`.
+- Ranked-channel QC was used after averaging whenever visual inspection suggested a possible remaining rogue channel. Additional channels were added only when clearly justified.
+- Averaged condition order was explicitly checked for each participant rather than assumed. This was important for `sub-2269A`, where the averaged order was Standard, Duration Deviant, Pitch Deviant.
+
+## Participant-specific notes
+### sub-2268A
+- Pre-QC file: `flp_fhp_dbe_sub-2268A_run-01.mat`
+- Final bad channels: MEG1711, MEG1741, MEG2041
+- Artefact threshold: 11444
+- Trial outcome: 33 bad / 1325 total; 1292 good trials retained.
+- Condition-wise good trials: Standard 1031; Pitch 137; Duration 124.
+- QC decision: Retained, borderline-clean. Ranked-channel QC showed distributed condition-specific noise; no additional channels added.
+- Notes: Watch-list considered: MEG1531, MEG1731, MEG2031, MEG1721.
+
+### sub-2269A
+- Pre-QC file: `flp_fhp_dbe_sub-2269A_run-01.mat`
+- Final bad channels: MEG1011, MEG1911
+- Artefact threshold: 30712
+- Trial outcome: 33 bad / 1326 total; 1293 good trials retained.
+- Condition-wise good trials: Standard 1037; Pitch 127; Duration 129.
+- QC decision: Retained, borderline/noisy. Watch-list channels were not dominant after ranked-channel QC.
+- Notes: Averaged condition order differed: Trial 1 Standard, Trial 2 Duration Deviant, Trial 3 Pitch Deviant. This reinforced the rule to verify condition labels rather than assuming trial order.
+
+### sub-2320A
+- Pre-QC file: `flp_fhp_dbe_sub-2320A_run-01.mat`
+- Final bad channels: MEG0721, MEG1111, MEG1841
+- Artefact threshold: 11997
+- Trial outcome: 33 bad / 1328 total; 1295 good trials retained.
+- Condition-wise good trials: Standard 1033; Pitch 134; Duration 128.
+- QC decision: Retained, borderline/lower-quality. MEG0721 was added after ranked-channel QC. Remaining Duration Deviant activity appeared distributed rather than one clear rogue channel.
+- Notes: Initial bad channels were MEG1111 and MEG1841. MEG0721 was later added because it was manually observed and ranked highly in Duration Deviant.
+
+### sub-2342A
+- Pre-QC file: `flp_fhp_dbe_sub-2342A_run-01.mat`
+- Final bad channels: MEG1911, MEG2231
+- Artefact threshold: 9682
+- Trial outcome: 33 bad / 1329 total; 1296 good trials retained.
+- Condition-wise good trials: Standard 1037; Pitch 137; Duration 122.
+- QC decision: Retained, acceptable/mildly borderline. Pitch Deviant had higher visual scale, but ranked-channel QC did not identify a clear remaining rogue channel.
+- Notes: Trial definition initially produced 1330 trials, but trial 1330 was out of bounds and not read. Final usable dataset contained 1329 trials.
+
+## Files created or updated today
+- `flp_fhp_dbe_sub-2268A_run-01.mat`
+- `aflp_fhp_dbe_sub-2268A_run-01.mat`
+- `maflp_fhp_dbe_sub-2268A_run-01.mat`
+- `flp_fhp_dbe_sub-2269A_run-01.mat`
+- `aflp_fhp_dbe_sub-2269A_run-01.mat`
+- `maflp_fhp_dbe_sub-2269A_run-01.mat`
+- `flp_fhp_dbe_sub-2320A_run-01.mat`
+- `aflp_fhp_dbe_sub-2320A_run-01.mat`
+- `maflp_fhp_dbe_sub-2320A_run-01.mat`
+- `flp_fhp_dbe_sub-2342A_run-01.mat`
+- `aflp_fhp_dbe_sub-2342A_run-01.mat`
+- `maflp_fhp_dbe_sub-2342A_run-01.mat`
+
+## Overall outcome
+Four participants were completed and retained today. Two participants were retained as borderline/lower-quality due to noisier averaged conditions, but no participant required exclusion. Across all four participants, artefact rejection removed approximately 2.5% of trials, and all deviant conditions retained usable trial counts.
+
+## Next steps
+- Continue preprocessing the remaining healthy controls using the same fixed pre-QC and second-pass QC procedure.
+- Maintain the participant-level tracking table with final bad channels, threshold, rejected trial count, condition-wise trial counts, and final retain/borderline/exclude decision.
+- Keep verifying averaged condition order after robust averaging.
+- Later, review borderline retained participants together when deciding the final DCM input sample.
