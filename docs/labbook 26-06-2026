@@ -1,0 +1,168 @@
+# MSc Project Lab Book Entry
+
+## Friday 26 June 2026
+
+### Objective
+
+Preprocess four additional healthy-control participants from OpenNeuro `ds004837` using the established SPM MEG preprocessing pipeline.
+
+Participants completed today:
+
+1. `sub-2218A`
+2. `sub-2227A`
+3. `sub-2237A`
+4. `sub-2245A`
+
+---
+
+## Methods used today
+
+The same second-pass preprocessing workflow was applied to all four participants:
+
+1. Generated fixed pre-QC files where absent using the established batch preprocessing pipeline.
+2. Performed manual visual bad-channel review across sampled Standard, Pitch Deviant, and Duration Deviant trials.
+3. Saved initial bad-channel sets using the safe index-based bad-channel marking method.
+4. Calibrated participant-specific artefact thresholds using the 97.5th percentile of maximum absolute trial amplitude across currently good MEG channels.
+5. Ran artefact rejection using SPM `spm_eeg_artefact` with:
+   - `mode = 'reject'`
+   - `fun = 'threshchan'`
+   - `badchanthresh = 0.2`
+   - `excwin = 400`
+   - `append = true`
+6. Checked total and condition-wise bad/good trial counts.
+7. Ran robust averaging by condition using:
+   - `S.robust.ks = 3`
+   - `S.robust.bycondition = 1`
+   - `S.robust.savew = 1`
+   - `S.removebad = 1`
+8. Inspected averaged conditions visually.
+9. Ran ranked-channel QC where residual high-amplitude sensors were suspected.
+10. Added extra bad channels only where ranked-channel QC identified a clear remaining rogue sensor.
+
+---
+
+## Summary tracking table
+
+| Participant | Final bad channels | Threshold | Total trials | Bad trials | Good trials | Rejected | Standard good / total | Pitch good / total | Duration good / total | Final decision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| `sub-2218A` | `MEG0231`, `MEG0241`, `MEG0431`, `MEG1341`, `MEG1821` | 16375 | 1500 | 38 | 1462 | 2.53% | 1168 / 1200 | 146 / 150 | 148 / 150 | Retained; acceptable after adding `MEG0241` from ranked-channel QC. |
+| `sub-2227A` | `MEG1241`, `MEG1311`, `MEG1741` | 10195 | 1445 | 36 | 1409 | 2.49% | 1128 / 1156 | 142 / 146 | 139 / 143 | Retained; borderline/acceptable after adding `MEG1741` from ranked-channel QC. |
+| `sub-2237A` | `MEG0711`, `MEG0741`, `MEG0941`, `MEG1021`, `MEG1121`, `MEG1131`, `MEG1841` | 16621 | 1501 | 38 | 1463 | 2.53% | 1167 / 1200 | 150 / 151 | 146 / 150 | Retained; borderline/acceptable. Pitch Deviant remained slightly borderline but no further clear cross-condition rogue channel was identified. |
+| `sub-2245A` | `MEG0621`, `MEG1031`, `MEG1041`, `MEG1111`, `MEG1141`, `MEG1621`, `MEG1631` | 8747 | 1500 | 38 | 1462 | 2.53% | 1169 / 1200 | 144 / 150 | 149 / 150 | Retained; acceptable/borderline-clean after adding `MEG1031` from ranked-channel QC. |
+
+---
+
+## Participant notes
+
+### `sub-2218A`
+
+- Initial bad channels: `MEG0231`, `MEG0431`, `MEG1341`, `MEG1821`.
+- Watch-list channels after manual review: `MEG1131`, `MEG0241`, `MEG1331`.
+- Threshold selected: `16375`, corresponding to approximately the 97.5th percentile.
+- Artefact rejection removed 38 / 1500 trials (2.53%).
+- Condition-wise retained trials:
+  - Standard: 1168 / 1200
+  - Pitch Deviant: 146 / 150
+  - Duration Deviant: 148 / 150
+- Initial averaged deviant conditions had high display scales. Ranked-channel QC showed `MEG0241` dominating the Duration Deviant and Pitch Deviant averages.
+- `MEG0241` was added to the final bad-channel set and robust averaging was rerun.
+- Final decision: retained. Conditions looked acceptable after adding `MEG0241`.
+
+### `sub-2227A`
+
+- Initial bad channels: `MEG1241`, `MEG1311`.
+- Watch-list channels after manual review: `MEG0331`, `MEG0611`, `MEG2021`.
+- Threshold selected: `10195`, corresponding to approximately the 97.5th percentile.
+- Artefact rejection removed 36 / 1445 trials (2.49%).
+- Condition-wise retained trials:
+  - Standard: 1128 / 1156
+  - Pitch Deviant: 142 / 146
+  - Duration Deviant: 139 / 143
+- Ranked-channel QC showed `MEG1741` as a clear remaining dominant channel across averaged conditions.
+- `MEG1741` was added to the final bad-channel set and robust averaging was rerun.
+- Follow-up ranked-channel QC showed no further single cross-condition rogue channel. `MEG2021` remained visible but was not dominant enough to remove.
+- Final decision: retained, borderline/acceptable.
+
+### `sub-2237A`
+
+- Initial bad channels: `MEG0711`, `MEG0741`, `MEG0941`, `MEG1021`, `MEG1121`, `MEG1131`, `MEG1841`.
+- Watch-list channels after manual review: `MEG2021`, `MEG1141`, `MEG1111`.
+- Threshold selected: `16621`, corresponding to approximately the 97.5th percentile.
+- Artefact rejection removed 38 / 1501 trials (2.53%).
+- Condition-wise retained trials:
+  - Standard: 1167 / 1200
+  - Pitch Deviant: 150 / 151
+  - Duration Deviant: 146 / 150
+- This participant had 1501 trials, including one extra Pitch Deviant trial.
+- Averaged Standard and Duration Deviant conditions were acceptable. Pitch Deviant remained slightly borderline.
+- Ranked-channel QC did not show a clearly recurring cross-condition rogue channel requiring additional removal.
+- Final decision: retained, borderline/acceptable.
+
+### `sub-2245A`
+
+- Initial bad channels: `MEG0621`, `MEG1041`, `MEG1111`, `MEG1141`, `MEG1621`, `MEG1631`.
+- Watch-list channel after manual review: `MEG1031`.
+- Threshold selected: `8747`, corresponding to approximately the 97.5th percentile.
+- Artefact rejection removed 38 / 1500 trials (2.53%).
+- Condition-wise retained trials:
+  - Standard: 1169 / 1200
+  - Pitch Deviant: 144 / 150
+  - Duration Deviant: 149 / 150
+- After initial averaging, `MEG1031` dominated both deviant averages:
+  - Pitch Deviant: rank 1, 382.86
+  - Duration Deviant: rank 1, 416.04
+- `MEG1031` was added to the final bad-channel set and robust averaging was rerun.
+- Final ranked-channel QC showed controlled remaining amplitudes:
+  - Standard max: 94.29
+  - Pitch Deviant max: 227.10
+  - Duration Deviant max: 211.53
+- Final decision: retained, acceptable/borderline-clean.
+
+---
+
+## Files generated or updated
+
+All files are stored in:
+
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm
+```
+
+For each participant, the key outputs are:
+
+| Participant | File | Meaning |
+|---|---|---|
+| `sub-2218A` | `flp_fhp_dbe_sub-2218A_run-01.mat` | Filtered pre-QC epoched file |
+| `sub-2218A` | `aflp_fhp_dbe_sub-2218A_run-01.mat` | Artefact-marked file |
+| `sub-2218A` | `maflp_fhp_dbe_sub-2218A_run-01.mat` | Final robust average by condition |
+| `sub-2227A` | `flp_fhp_dbe_sub-2227A_run-01.mat` | Filtered pre-QC epoched file |
+| `sub-2227A` | `aflp_fhp_dbe_sub-2227A_run-01.mat` | Artefact-marked file |
+| `sub-2227A` | `maflp_fhp_dbe_sub-2227A_run-01.mat` | Final robust average by condition |
+| `sub-2237A` | `flp_fhp_dbe_sub-2237A_run-01.mat` | Filtered pre-QC epoched file |
+| `sub-2237A` | `aflp_fhp_dbe_sub-2237A_run-01.mat` | Artefact-marked file |
+| `sub-2237A` | `maflp_fhp_dbe_sub-2237A_run-01.mat` | Final robust average by condition |
+| `sub-2245A` | `flp_fhp_dbe_sub-2245A_run-01.mat` | Filtered pre-QC epoched file |
+| `sub-2245A` | `aflp_fhp_dbe_sub-2245A_run-01.mat` | Artefact-marked file |
+| `sub-2245A` | `maflp_fhp_dbe_sub-2245A_run-01.mat` | Final robust average by condition |
+
+---
+
+## End-of-day status
+
+Four additional healthy-control participants were fully preprocessed today:
+
+```text
+sub-2218A
+sub-2227A
+sub-2237A
+sub-2245A
+```
+
+All four were retained for downstream analysis.
+
+Updated project totals:
+
+```text
+Fully preprocessed participants including pilot: 16
+Fully preprocessed main healthy-control participants excluding pilot: 15
+```
