@@ -1,0 +1,310 @@
+# MATLAB code used - 27 June 2026
+
+This file documents the main MATLAB/SPM code used for preprocessing `sub-2246A` and `sub-2252A` on Saturday 27 June 2026.
+
+## Common setup
+
+```matlab
+clear; clc;
+
+restoredefaultpath
+addpath(genpath('/Users/klauskrause/Documents/MATLAB/spm'))
+spm('defaults','eeg')
+spm_jobman('initcfg')
+
+workdir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+cd(workdir);
+runname = 'run-01';
+```
+
+## sub-2246A - save initial bad channels and calibrate threshold
+
+```matlab
+subj = 'sub-2246A';
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+
+D = spm_eeg_load(preqc_file);
+
+initial_bad_labels = {'MEG0731','MEG1121','MEG2241','MEG2531'};
+labels = chanlabels(D);
+idx_bad = find(ismember(labels, initial_bad_labels));
+
+if numel(idx_bad) ~= numel(initial_bad_labels)
+    error('Not all requested bad-channel labels were found.');
+end
+
+D = badchannels(D, ':', 0);
+D = badchannels(D, idx_bad, 1);
+save(D);
+
+D = spm_eeg_load(preqc_file);
+goodch = setdiff(1:D.nchannels, badchannels(D));
+mx_trial = zeros(D.ntrials,1);
+
+for tr = 1:D.ntrials
+    dat = D(goodch,:,tr);
+    mx_trial(tr) = max(abs(dat(:)));
+end
+
+disp(prctile(mx_trial,[90 95 97.5 99 99.5]))
+```
+
+Selected threshold for `sub-2246A`: `9431`.
+
+## sub-2246A - artefact rejection and condition counts
+
+```matlab
+subj = 'sub-2246A';
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+art_file   = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+threshold = 9431;
+
+S = [];
+S.D = preqc_file;
+S.mode = 'reject';
+S.badchanthresh = 0.2;
+S.append = true;
+S.methods(1).channels = {'MEG'};
+S.methods(1).fun = 'threshchan';
+S.methods(1).settings.threshold = threshold;
+S.methods(1).settings.excwin = 400;
+S.prefix = 'a';
+
+D_art = spm_eeg_artefact(S);
+
+D_art = spm_eeg_load(art_file);
+bt = badtrials(D_art);
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+fprintf('Total trials: %d\n', D_art.ntrials)
+fprintf('Bad trials: %d\n', sum(bt))
+fprintf('Good trials: %d\n', sum(~bt))
+fprintf('Percent rejected: %.2f%%\n', 100 * sum(bt) / D_art.ntrials)
+
+conds = string(conditions(D_art))';
+u = unique(conds);
+for i = 1:numel(u)
+    sel = conds == u(i);
+    fprintf('%s: total=%d bad=%d good=%d\n', u(i), sum(sel), sum(bt(sel)), sum(sel & ~bt));
+end
+```
+
+## Robust averaging function
+
+```matlab
+function D_avg = run_robust_average(art_file)
+    S = [];
+    S.D = art_file;
+    S.robust = [];
+    S.robust.ks = 3;
+    S.robust.bycondition = 1;
+    S.robust.savew = 1;
+    S.removebad = 1;
+    S.plv = 0;
+    S.updatehistory = 1;
+    S.prefix = 'm';
+    D_avg = spm_eeg_average(S);
+end
+```
+
+## Ranked-channel QC function
+
+```matlab
+function ranked_channel_qc(avg_file, watch_list)
+    D_avg = spm_eeg_load(avg_file);
+    labels = chanlabels(D_avg);
+    bad_idx = badchannels(D_avg);
+    good_idx = setdiff(1:D_avg.nchannels, bad_idx);
+
+    disp('Current bad channels:')
+    disp(chanlabels(D_avg, bad_idx)')
+
+    disp('Averaged condition order:')
+    for tr = 1:D_avg.ntrials
+        fprintf('Trial %d = %s\n', tr, char(conditions(D_avg, tr)));
+    end
+
+    for tr = 1:D_avg.ntrials
+        cond_name = char(conditions(D_avg, tr));
+        dat = D_avg(good_idx,:,tr);
+        mx = max(abs(dat), [], 2);
+        [sorted_mx, order] = sort(mx, 'descend');
+        top_idx = good_idx(order(1:min(20,numel(order))));
+        top_labels = labels(top_idx)';
+
+        fprintf('\nCondition %d: %s\n', tr, cond_name)
+        disp(table(top_labels, sorted_mx(1:numel(top_labels)), ...
+            'VariableNames', {'Channel','MaxAbsAmplitude'}))
+
+        overlap = intersect(top_labels, watch_list);
+        if ~isempty(overlap)
+            disp('Watch-list channels appearing among largest channels:')
+            disp(overlap')
+        else
+            disp('No watch-list channels among largest channels.')
+        end
+    end
+end
+```
+
+## sub-2246A - add MEG2211 after ranked-channel QC and rerun averaging
+
+```matlab
+subj = 'sub-2246A';
+art_file = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+avg_file = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+D_art = spm_eeg_load(art_file);
+final_bad_labels = {'MEG0731','MEG1121','MEG2211','MEG2241','MEG2531'};
+labels = chanlabels(D_art);
+idx_final = find(ismember(labels, final_bad_labels));
+
+if numel(idx_final) ~= numel(final_bad_labels)
+    error('Not all final bad-channel labels were found.');
+end
+
+D_art = badchannels(D_art, ':', 0);
+D_art = badchannels(D_art, idx_final, 1);
+save(D_art);
+
+if exist(avg_file, 'file')
+    delete(avg_file);
+end
+avg_dat = strrep(avg_file, '.mat', '.dat');
+if exist(avg_dat, 'file')
+    delete(avg_dat);
+end
+
+D_avg = run_robust_average(art_file);
+spm_eeg_review(D_avg);
+```
+
+## sub-2252A - no initial bad channels and threshold calibration
+
+```matlab
+subj = 'sub-2252A';
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+
+D = spm_eeg_load(preqc_file);
+D = badchannels(D, ':', 0);
+save(D);
+
+D = spm_eeg_load(preqc_file);
+goodch = setdiff(1:D.nchannels, badchannels(D));
+mx_trial = zeros(D.ntrials,1);
+
+for tr = 1:D.ntrials
+    dat = D(goodch,:,tr);
+    mx_trial(tr) = max(abs(dat(:)));
+end
+
+disp(prctile(mx_trial,[90 95 97.5 99 99.5]))
+```
+
+Selected threshold for `sub-2252A`: `10536`.
+
+## sub-2252A - artefact rejection and robust averaging
+
+```matlab
+subj = 'sub-2252A';
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+art_file   = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+avg_file   = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+threshold = 10536;
+
+S = [];
+S.D = preqc_file;
+S.mode = 'reject';
+S.badchanthresh = 0.2;
+S.append = true;
+S.methods(1).channels = {'MEG'};
+S.methods(1).fun = 'threshchan';
+S.methods(1).settings.threshold = threshold;
+S.methods(1).settings.excwin = 400;
+S.prefix = 'a';
+
+D_art = spm_eeg_artefact(S);
+D_avg = run_robust_average(art_file);
+spm_eeg_review(D_avg);
+```
+
+## sub-2252A - ranked-channel QC watch-list
+
+```matlab
+subj = 'sub-2252A';
+avg_file = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+watch_list = { ...
+    'MEG1841', ...
+    'MEG2211', ...
+    'MEG2221', ...
+    'MEG1711', ...
+    'MEG1721', ...
+    'MEG1731', ...
+    'MEG1741', ...
+    'MEG1531', ...
+    'MEG2131', ...
+    'MEG2541'};
+
+ranked_channel_qc(avg_file, watch_list);
+```
+
+## Final verification template
+
+```matlab
+subj = 'sub-2252A';  % Change to participant ID as needed.
+threshold = 10536;   % Change to participant-specific threshold.
+
+preqc_file = fullfile(workdir, ['flp_fhp_dbe_' subj '_' runname '.mat']);
+art_file   = fullfile(workdir, ['aflp_fhp_dbe_' subj '_' runname '.mat']);
+avg_file   = fullfile(workdir, ['maflp_fhp_dbe_' subj '_' runname '.mat']);
+
+D_art = spm_eeg_load(art_file);
+
+fprintf('\nFinal preprocessing summary for %s\n', subj)
+fprintf('Pre-QC file: %s\n', preqc_file)
+fprintf('Artefact-marked file: %s\n', art_file)
+fprintf('Final averaged file: %s\n', avg_file)
+fprintf('Artefact threshold used: %d\n', threshold)
+
+disp('Final bad channels:')
+bad_idx = badchannels(D_art);
+if isempty(bad_idx)
+    disp('None')
+else
+    disp(chanlabels(D_art, bad_idx)')
+end
+
+bt = badtrials(D_art);
+if isnumeric(bt) && ~islogical(bt)
+    tmp = false(D_art.ntrials,1);
+    tmp(bt) = true;
+    bt = tmp;
+else
+    bt = bt(:);
+end
+
+fprintf('Total trials: %d\n', D_art.ntrials)
+fprintf('Bad trials: %d\n', sum(bt))
+fprintf('Good trials: %d\n', sum(~bt))
+fprintf('Percent rejected: %.2f%%\n', 100 * sum(bt) / D_art.ntrials)
+
+conds = string(conditions(D_art))';
+u = unique(conds);
+for i = 1:numel(u)
+    sel = conds == u(i);
+    fprintf('%s: total=%d bad=%d good=%d\n', u(i), sum(sel), sum(bt(sel)), sum(sel & ~bt));
+end
+
+D_avg = spm_eeg_load(avg_file);
+disp('Averaged condition order:')
+for tr = 1:D_avg.ntrials
+    fprintf('Trial %d = %s\n', tr, char(conditions(D_avg, tr)));
+end
+```
