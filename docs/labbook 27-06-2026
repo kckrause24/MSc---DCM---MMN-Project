@@ -1,0 +1,69 @@
+# MSc Project Lab Book Entry - Saturday 27 June 2026
+
+**Project:** Neurotransmitter Receptor-Informed Dynamic Causal Modelling of Auditory MEG Responses  
+**Objective:** Fully preprocess two additional healthy-control participants: `sub-2246A` and `sub-2252A`.
+
+## Objectives
+
+- Complete full second-pass preprocessing for two healthy-control participants.
+- Use manual bad-channel inspection, participant-specific artefact thresholding, robust averaging, and ranked-channel QC.
+- Retain or flag each participant based on final averaged-condition quality.
+
+## Summary of work completed
+
+Two healthy-control participants were fully preprocessed today: `sub-2246A` and `sub-2252A`. Both participants were retained. `sub-2246A` required one additional channel to be marked bad after ranked-channel QC. `sub-2252A` had ambiguous manual bad-channel review and was retained without any channels marked bad after averaged QC showed distributed rather than focal sensor noise.
+
+## Tracking table
+
+| Participant | Total trials | Threshold | Bad trials | Good trials | Standard good | Pitch Deviant good | Duration Deviant good | Final bad channels | Status |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| `sub-2246A` | 1500 | 9431 | 37 (2.47%) | 1463 | 1172 / 1200 | 147 / 150 | 144 / 150 | `MEG0731`, `MEG1121`, `MEG2211`, `MEG2241`, `MEG2531` | Retained - borderline/acceptable |
+| `sub-2252A` | 1336 | 10536 | 33 (2.47%) | 1303 | 1043 / 1068 | 127 / 132 | 133 / 136 | None | Retained - acceptable/borderline |
+
+## Participant notes
+
+### `sub-2246A`
+
+- Manual review identified four recurrent initial bad channels: `MEG0731`, `MEG1121`, `MEG2241`, and `MEG2531`.
+- The 97.5th percentile artefact threshold was selected: `9431`. This rejected 37 of 1500 trials (2.47%).
+- Condition-wise retained trials were strong: 1172 Standards, 147 Pitch Deviants, and 144 Duration Deviants.
+- Initial averaged review showed a high Pitch Deviant display scale.
+- Ranked-channel QC showed `MEG2211` was the clearest recurrent remaining candidate, ranking first in both deviant averages and appearing in the Standard average.
+- `MEG2211` was added to the final bad-channel list and robust averaging was rerun.
+- After rerunning, `MEG1111` remained high in Pitch Deviant but was not present in the top 20 for Standard or Duration Deviant. It was therefore treated as condition-specific rather than a recurrent bad channel and was not removed.
+- Final decision: retained, borderline/acceptable.
+
+### `sub-2252A`
+
+- Manual bad-channel review was difficult and did not reveal a clearly recurrent bad sensor. No initial bad channels were saved.
+- The manual watch-list included `MEG1841`, `MEG2211`, `MEG2221`, `MEG1711`, `MEG1721`, `MEG1731`, `MEG1741`, `MEG1531`, `MEG2131`, and `MEG2541`.
+- The 97.5th percentile artefact threshold was selected: `10536`. This rejected 33 of 1336 trials (2.47%).
+- Condition-wise retained trials were adequate: 1043 Standards, 127 Pitch Deviants, and 133 Duration Deviants.
+- Averaged-condition review looked acceptable/borderline.
+- Ranked-channel QC showed distributed high-amplitude channels rather than one dominant rogue channel.
+- `MEG1841` appeared in the Duration Deviant ranked list but did not dominate across conditions. `MEG2131` appeared in Pitch Deviant but was not dominant. `MEG2211` was low-ranked in Standard only.
+- Final decision: retained, acceptable/borderline, with no final bad channels.
+
+## Files generated or updated today
+
+| Participant | File type | Path |
+|---|---|---|
+| `sub-2246A` | Pre-QC | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/flp_fhp_dbe_sub-2246A_run-01.mat` |
+| `sub-2246A` | Artefact-marked | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/aflp_fhp_dbe_sub-2246A_run-01.mat` |
+| `sub-2246A` | Final averaged | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/maflp_fhp_dbe_sub-2246A_run-01.mat` |
+| `sub-2252A` | Pre-QC | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/flp_fhp_dbe_sub-2252A_run-01.mat` |
+| `sub-2252A` | Artefact-marked | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/aflp_fhp_dbe_sub-2252A_run-01.mat` |
+| `sub-2252A` | Final averaged | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/maflp_fhp_dbe_sub-2252A_run-01.mat` |
+
+## Cumulative preprocessing status
+
+- Main healthy-control participants fully preprocessed after today: **17**.
+- Fully preprocessed participants including the pilot participant: **18**.
+- Both participants processed today were retained for downstream averaging and DCM preparation.
+
+## Next steps
+
+- Continue preprocessing the next healthy-control participants using the same fixed pipeline.
+- Continue applying participant-specific 97.5th percentile artefact thresholds.
+- Use ranked-channel QC after robust averaging, especially when manual bad-channel review is ambiguous.
+- Avoid adding channels unless one sensor clearly dominates across conditions or is strongly justified by both manual and averaged QC.
