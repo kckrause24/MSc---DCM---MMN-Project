@@ -1,0 +1,67 @@
+# Lab Book Update — Friday 3 July 2026
+
+## Meeting
+**Meeting with:** Ulrich Stoof  
+**Purpose:** Discuss implementation of the receptor-informed DCM analysis and walk through the code/files previously shared for the MMN CMC workflow.
+
+## Meeting summary
+Met with Ulrich Stoof to discuss the planned post-preprocessing DCM analysis. He walked me through the relevant code structure and clarified how the original MMN receptor-informed DCM implementation handled sigma selection, EM-start initialisation, and comparison with the baseline CMC model.
+
+## Key takeaways
+
+### 1. Sigma selection for receptor-informed models
+The receptor-informed model should be fitted across the relevant Gaussian kernel / sigma settings so that the best sigma can be identified by model evidence.
+
+In practical terms, sigma controls the spatial weighting used to assign receptor-informed iEEG-derived priors to the MMN source locations. The model evidence can then be compared across sigma values to determine which spatial prior assignment works best for the current DCM.
+
+### 2. EM-start strategy: corrected interpretation
+Initial interpretation before clarification:
+
+> Run 18 EM starts for the receptor-informed model, then compare the best receptor-informed model with the baseline model using the same number of EM starts within the same sigma.
+
+Clarification from Ulrich:
+
+The 18 EM starts were not the whole initialisation strategy. In the original `DCM_CMC_subject1_Hanning_BPA...` script, the 18 random EM starts were part of **20 targeted inversions**:
+
+1. **First start:** baseline EM priors, i.e. zero priors, as in standard DCM.
+2. **Second start:** assigned receptor-informed priors used as EM starting values.
+3. **Third stage:** 18 additional random starts, as discussed.
+
+Therefore, the correct interpretation is:
+
+> For each prior-assignment / sigma setting, the inversion strategy involved two targeted starts followed by 18 random starts, giving 20 starts in total. The 18 starts were not completely random in isolation; they followed two structured initialisations.
+
+### 3. Code location for this logic
+Ulrich noted that this logic should be visible in the code of:
+
+```text
+DCM_CMC_subject1_Hanning_BPA...
+```
+
+especially around **line 212 and following**, where the script first inverts models with the two targeted starting values and then performs the 18 random initialisations.
+
+### 4. Baseline comparison
+The baseline CMC model should be compared against the receptor-informed model in a way that keeps the optimisation procedure fair. My current understanding is that the baseline model should also be fitted with comparable EM-start handling rather than being compared against a receptor-informed model that had many more opportunities to optimise.
+
+This point still needs to be checked carefully in the code, especially how the baseline model is initialised relative to the winning receptor-informed model and/or sigma setting.
+
+## Interpretation after the meeting
+The main correction is that I should not describe the method as simply “18 random EM starts.” A more accurate description is:
+
+> The original workflow used 20 initialisation attempts per prior-assignment condition: one standard/baseline start, one start based on the assigned receptor-informed priors, and 18 additional random starts. The best inversion was then selected using free energy / model evidence.
+
+This distinction matters because the initialisation scheme was partly structured and partly random.
+
+## Action points
+
+1. Re-open `DCM_CMC_subject1_Hanning_BPA...` and inspect line 212 onwards.
+2. Identify exactly how the two targeted starts are implemented.
+3. Identify exactly how the 18 random starts are generated.
+4. Confirm how the baseline CMC model is fitted and compared with receptor-informed CMC models.
+5. Adapt this logic to the current MSc analysis: grand-average MEG data, Standard vs Pitch Deviant, and the Phillips frequency-deviant model architecture.
+6. Document the final EM-start and sigma-selection strategy clearly before running the final DCMs.
+
+## Updated methodological note for thesis/lab book
+A suitable wording for the methods section may be:
+
+> For each receptor-informed prior-assignment / sigma setting, DCM inversion will use a structured multi-start scheme based on the original Stoof MMN implementation. This will include a standard/baseline initialisation, an initialisation based on the assigned receptor-informed priors, and 18 additional random initialisations. The highest-free-energy inversion will be retained for model comparison. The exact implementation will be verified against the original `DCM_CMC_subject1_Hanning_BPA...` script before final model fitting.
