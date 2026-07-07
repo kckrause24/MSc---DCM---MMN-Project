@@ -1,0 +1,70 @@
+# Lab Book Update
+
+## Wednesday 1st July 2026 - Meeting with Supervisor Richard Rosch
+
+**Project stage:** Post-preprocessing planning for source/DCM modelling  
+**Meeting focus:** DCM model-fitting strategy after completion of preprocessing for the retained healthy-control sample.
+
+### Purpose of meeting
+
+I presented my proposed DCM fitting plan to Richard Rosch and asked questions about how to simplify and implement the next modelling stage. The discussion focused on how to move from the completed preprocessing outputs to a feasible MSc-level DCM analysis.
+
+### Main takeaways
+
+1. **Fit DCM to a grand mean rather than individual participants.**  
+   The analysis should use the average response across the 20 retained healthy-control participants. DCMs will then be fitted to this grand-average response rather than fitting separate DCMs to each participant. This simplifies and streamlines the modelling stage.
+
+2. **Use the Pitch Deviant contrast.**  
+   The modelling should focus on the Pitch Deviant contrast rather than the Duration Deviant contrast. The reason is that pitch differences are present from sound onset and therefore appear immediately in the brain response. Duration differences involve a time lag because the auditory system can only detect the duration difference after enough of the sound has unfolded.
+
+3. **Use the frequency-deviant network model from Phillips et al.**  
+   For the DCM network architecture, Richard advised using the following paper:
+
+   Phillips, H. N., Blenkmann, A., Hughes, L. E., Bekinschtein, T. A., & Rowe, J. B. (2015). *Hierarchical Organization of Frontotemporal Networks for the Prediction of Stimuli across Multiple Dimensions*. Journal of Neuroscience, 35(25), 9255-9264.
+
+   The relevant model is the Frequency Deviant winning model shown in Figure 6. This is a six-node frontotemporal network. The working implementation interpretation is that this corresponds to the frequency-deviant winning architecture, i.e. Model 12 from Figure 2, with bilateral A1, bilateral STG, bilateral IFG, and lateral IFG-to-IFG connectivity. This should be confirmed when translating the diagram into the DCM `A`, `B`, and `C` matrices.
+
+4. **Allow both intrinsic and extrinsic parameters to vary.**  
+   The DCM should allow both between-region connectivity parameters and within-source microcircuit parameters to vary. In practical terms, this means the analysis should not only focus on extrinsic connections between sources, but also on intrinsic CMC parameters within each cortical source.
+
+5. **Use the full epoch as the DCM fitting window.**  
+   The DCM fitting window should match the preprocessed epoch window:
+
+   ```text
+   [-100, 300] ms
+   ```
+
+   This means the model should be fitted across the full available peri-stimulus epoch rather than a shorter window such as 0-200 ms or 0-250 ms.
+
+6. **Develop a proper understanding of the SPM/DCM GUI and matrices.**  
+   Richard emphasised the importance of understanding how to use the SPM/DCM GUI and how the main DCM matrices work. In particular, I need to understand what the `A`, `B`, and `C` matrices denote before relying only on scripts.
+
+### Interpretation for the next analysis stage
+
+The updated post-preprocessing modelling plan is now:
+
+1. Start from the retained set of 20 healthy controls.
+2. Create a grand-average response across those participants.
+3. Use only the Standard and Pitch Deviant conditions for the main DCM analysis.
+4. Implement the Phillips et al. frequency-deviant winning architecture from Figure 6 as a six-node DCM network.
+5. Fit a standard CMC DCM and a receptor-informed CMC DCM to the grand-average response.
+6. Allow both extrinsic and intrinsic parameters to vary.
+7. Use the full DCM time window of -100 to 300 ms.
+8. Compare standard versus receptor-informed model evidence.
+
+### Immediate next actions
+
+- Create or verify the grand-average SPM file across the 20 retained healthy controls.
+- Confirm the condition order and isolate the Standard and Pitch Deviant responses.
+- Translate the Phillips frequency-deviant winning model into explicit DCM source order and `A`, `B`, and `C` matrices.
+- Confirm the exact six source coordinates for bilateral A1, bilateral STG, and bilateral IFG.
+- Review the SPM/DCM GUI to understand how the matrices are represented visually and in the MATLAB structure.
+
+### Key unresolved technical points
+
+- Exact source order for the six-node model.
+- Exact MNI coordinates to use for bilateral A1, STG, and IFG.
+- Exact `A`, `B`, and `C` matrix coding of the Phillips frequency-deviant architecture.
+- Which intrinsic CMC parameters should receive receptor-informed priors.
+- Whether to use a single receptor-prior kernel or test multiple kernels.
+- How many EM starts should be used for the standard and receptor-informed DCMs.
