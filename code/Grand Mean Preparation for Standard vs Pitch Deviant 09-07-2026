@@ -1,0 +1,930 @@
+% ========================================================================
+% MSc Thesis Project
+% DCM Day 1: Grand mean preparation for Standard vs Pitch Deviant
+% Date: Thursday 9 July 2026
+%
+% Purpose:
+% 1. Locate final averaged files for 20 retained healthy controls.
+% 2. Standardise condition order to:
+% Condition 1 = Standard
+% Condition 2 = Pitch Deviant
+% 3. Create a controlled manual grand mean because spm_eeg_grandmean
+% failed due to MEG sensor-array metadata mismatch.
+% 4. Exclude subject-specific bad channels during manual averaging.
+% 5. Create a final baseline-corrected DCM-ready grand mean.
+% 6. Generate QC plots.
+%
+% Final DCM input:
+% grandmean_20HC_standard_pitch_manual_bc.mat
+% ========================================================================
+
+%% ------------------------------------------------------------------------
+% Step 0: Define project paths
+% -------------------------------------------------------------------------
+
+clear;
+clc;
+
+main_controls_dir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+pilot_dir = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test';
+
+day1_dir = fullfile(main_controls_dir, 'DCM_Day1_GrandMean');
+
+if ~exist(day1_dir, 'dir')
+mkdir(day1_dir);
+end
+
+cd(day1_dir);
+
+fprintf('\nWorking directory:\n%s\n', pwd);
+
+%% ------------------------------------------------------------------------
+% Step 1: Find the 19 main healthy-control final averaged files
+% -------------------------------------------------------------------------
+
+main_files_struct = dir(fullfile(main_controls_dir, ...
+'maflp_fhp_dbe_sub-*_run-01.mat'));
+
+main_files = fullfile({main_files_struct.folder}, {main_files_struct.name})';
+
+main_files = sort(main_files);
+
+fprintf('\nFound %d main healthy-control final averaged files.\n', ...
+numel(main_files));
+
+disp(main_files);
+
+%% ------------------------------------------------------------------------
+% Step 2: Add pilot participant final averaged file
+% -------------------------------------------------------------------------
+
+pilot_final = fullfile(pilot_dir, ...
+'maflp_fhp_dbe2_sub-2247A_run-01.mat');
+
+if ~exist(pilot_final, 'file')
+error('Pilot final averaged file not found: %s', pilot_final);
+end
+
+files20 = [main_files; {pilot_final}];
+files20 = sort(files20);
+
+fprintf('\nTotal files for grand mean: %d\n', numel(files20));
+
+if numel(files20) ~= 20
+error('Expected 20 files but found %d.', numel(files20));
+end
+
+disp(files20);
+
+%% ------------------------------------------------------------------------
+% Step 3: Verify all 20 files load in SPM and inspect condition order
+% -------------------------------------------------------------------------
+
+file_diagnostic = table();
+
+for i = 1:numel(files20)
+% ========================================================================
+% MSc Thesis Project
+% DCM Day 1: Grand mean preparation for Standard vs Pitch Deviant
+% Date: Thursday 9 July 2026
+%
+% Purpose:
+% 1. Locate final averaged files for 20 retained healthy controls.
+% 2. Standardise condition order to:
+% Condition 1 = Standard
+% Condition 2 = Pitch Deviant
+% 3. Create a controlled manual grand mean because spm_eeg_grandmean
+% failed due to MEG sensor-array metadata mismatch.
+% 4. Exclude subject-specific bad channels during manual averaging.
+% 5. Create a final baseline-corrected DCM-ready grand mean.
+% 6. Generate QC plots.
+%
+% Final DCM input:
+% grandmean_20HC_standard_pitch_manual_bc.mat
+% ========================================================================
+
+%% ------------------------------------------------------------------------
+% Step 0: Define project paths
+% -------------------------------------------------------------------------
+
+clear;
+clc;
+
+main_controls_dir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+pilot_dir = '/Users/klauskrause/Documents/MATLAB/ds004837_spm_test';
+
+day1_dir = fullfile(main_controls_dir, 'DCM_Day1_GrandMean');
+
+if ~exist(day1_dir, 'dir')
+mkdir(day1_dir);
+end
+
+cd(day1_dir);
+
+fprintf('\nWorking directory:\n%s\n', pwd);
+
+%% ------------------------------------------------------------------------
+% Step 1: Find the 19 main healthy-control final averaged files
+% -------------------------------------------------------------------------
+
+main_files_struct = dir(fullfile(main_controls_dir, ...
+'maflp_fhp_dbe_sub-*_run-01.mat'));
+
+main_files = fullfile({main_files_struct.folder}, {main_files_struct.name})';
+
+main_files = sort(main_files);
+
+fprintf('\nFound %d main healthy-control final averaged files.\n', ...
+numel(main_files));
+
+disp(main_files);
+
+%% ------------------------------------------------------------------------
+% Step 2: Add pilot participant final averaged file
+% -------------------------------------------------------------------------
+
+pilot_final = fullfile(pilot_dir, ...
+'maflp_fhp_dbe2_sub-2247A_run-01.mat');
+
+if ~exist(pilot_final, 'file')
+error('Pilot final averaged file not found: %s', pilot_final);
+end
+
+files20 = [main_files; {pilot_final}];
+files20 = sort(files20);
+
+fprintf('\nTotal files for grand mean: %d\n', numel(files20));
+
+if numel(files20) ~= 20
+error('Expected 20 files but found %d.', numel(files20));
+end
+
+disp(files20);
+
+%% ------------------------------------------------------------------------
+% Step 3: Verify all 20 files load in SPM and inspect condition order
+% -------------------------------------------------------------------------
+
+file_diagnostic = table();
+
+for i = 1:numel(files20)
+end
+
+disp(file_diagnostic);
+
+save(fullfile(day1_dir, 'day1_file_diagnostic.mat'), ...
+'file_diagnostic', 'files20');
+
+writetable(file_diagnostic, ...
+fullfile(day1_dir, 'day1_file_diagnostic.csv'));
+
+%% ------------------------------------------------------------------------
+% Step 4: Create standardised two-condition files
+% Condition 1 = Standard
+% Condition 2 = Pitch Deviant
+% -------------------------------------------------------------------------
+
+standard_pitch_dir = fullfile(day1_dir, 'standard_pitch_subject_files');
+
+if ~exist(standard_pitch_dir, 'dir')
+mkdir(standard_pitch_dir);
+end
+
+standard_pitch_files = cell(numel(files20), 1);
+
+for i = 1:numel(files20)
+D = spm_eeg_load(files20{i});
+
+conds = string(D.conditions);
+lower_conds = lower(conds);
+
+standard_idx = find(contains(lower_conds, 'standard'), 1);
+pitch_idx    = find(contains(lower_conds, 'pitch'), 1);
+
+if isempty(standard_idx)
+    error('Could not find Standard condition in %s', D.fname);
+end
+
+if isempty(pitch_idx)
+    error('Could not find Pitch Deviant condition in %s', D.fname);
+end
+
+subj = regexp(files20{i}, 'sub-\d+A', 'match', 'once');
+
+output_file = fullfile(standard_pitch_dir, ...
+    sprintf('sp_%s_standard_pitch.mat', subj));
+
+output_dat = strrep(output_file, '.mat', '.dat');
+
+if exist(output_file, 'file')
+    delete(output_file);
+end
+
+if exist(output_dat, 'file')
+    delete(output_dat);
+end
+
+Dnew = clone(D, output_file, [D.nchannels length(D.time) 2]);
+
+Dnew(:,:,1) = D(:,:,standard_idx);
+Dnew(:,:,2) = D(:,:,pitch_idx);
+
+Dnew = conditions(Dnew, 1, 'Standard');
+Dnew = conditions(Dnew, 2, 'Pitch Deviant');
+
+Dnew = type(Dnew, 'evoked');
+
+save(Dnew);
+
+standard_pitch_files{i} = output_file;
+
+fprintf('%02d %s | Standard original condition %d | Pitch original condition %d\n', ...
+    i, subj, standard_idx, pitch_idx);
+end
+
+save(fullfile(day1_dir, 'standard_pitch_files.mat'), ...
+'standard_pitch_files');
+
+%% ------------------------------------------------------------------------
+% Step 5: Verify standardised two-condition files
+% -------------------------------------------------------------------------
+
+standard_pitch_diagnostic = table();
+
+for i = 1:numel(standard_pitch_files)
+D = spm_eeg_load(standard_pitch_files{i});
+conds = string(D.conditions);
+subj = regexp(standard_pitch_files{i}, 'sub-\d+A', 'match', 'once');
+
+standard_pitch_diagnostic.Index(i,1) = i;
+standard_pitch_diagnostic.Subject(i,1) = string(subj);
+standard_pitch_diagnostic.File(i,1) = string(D.fname);
+standard_pitch_diagnostic.Nconditions(i,1) = D.ntrials;
+standard_pitch_diagnostic.Condition1(i,1) = conds(1);
+standard_pitch_diagnostic.Condition2(i,1) = conds(2);
+standard_pitch_diagnostic.Fsample(i,1) = D.fsample;
+standard_pitch_diagnostic.Nchannels(i,1) = D.nchannels;
+standard_pitch_diagnostic.TimeStart_ms(i,1) = D.time(1) * 1000;
+standard_pitch_diagnostic.TimeEnd_ms(i,1) = D.time(end) * 1000;
+standard_pitch_diagnostic.Type(i,1) = string(D.type);
+
+if D.ntrials ~= 2
+    error('File does not have exactly 2 conditions: %s', D.fname);
+end
+
+if ~(conds(1) == "Standard" && conds(2) == "Pitch Deviant")
+    error('Condition order incorrect in %s', D.fname);
+end
+
+if ~strcmp(D.type, 'evoked')
+    error('File type is not evoked in %s', D.fname);
+end
+
+fprintf('%02d %s verified: Standard | Pitch Deviant\n', i, subj);
+end
+
+disp(standard_pitch_diagnostic);
+
+save(fullfile(day1_dir, 'standard_pitch_diagnostic.mat'), ...
+'standard_pitch_diagnostic');
+
+writetable(standard_pitch_diagnostic, ...
+fullfile(day1_dir, 'standard_pitch_diagnostic.csv'));
+
+%% ------------------------------------------------------------------------
+% Step 6: Diagnose channel/sensor compatibility
+% -------------------------------------------------------------------------
+
+Dref = spm_eeg_load(standard_pitch_files{1});
+ref_labels = string(Dref.chanlabels);
+
+sensor_diagnostic = table();
+
+for i = 1:numel(standard_pitch_files)
+D = spm_eeg_load(standard_pitch_files{i});
+labels = string(D.chanlabels);
+
+subj = regexp(standard_pitch_files{i}, 'sub-\d+A', 'match', 'once');
+
+sensor_diagnostic.Index(i,1) = i;
+sensor_diagnostic.Subject(i,1) = string(subj);
+sensor_diagnostic.File(i,1) = string(D.fname);
+sensor_diagnostic.Nchannels(i,1) = D.nchannels;
+sensor_diagnostic.LabelsSameAsRef(i,1) = isequal(labels, ref_labels);
+sensor_diagnostic.Type(i,1) = string(D.type);
+sensor_diagnostic.Fsample(i,1) = D.fsample;
+sensor_diagnostic.TimeStart_ms(i,1) = D.time(1) * 1000;
+sensor_diagnostic.TimeEnd_ms(i,1) = D.time(end) * 1000;
+
+fprintf('%02d %s | labels same as ref = %d | channels = %d | type = %s\n', ...
+    i, subj, sensor_diagnostic.LabelsSameAsRef(i), ...
+    D.nchannels, D.type);
+end
+
+disp(sensor_diagnostic);
+
+save(fullfile(day1_dir, 'day1_sensor_diagnostic.mat'), ...
+'sensor_diagnostic');
+
+writetable(sensor_diagnostic, ...
+fullfile(day1_dir, 'day1_sensor_diagnostic.csv'));
+
+%% ------------------------------------------------------------------------
+% Step 7: Attempt SPM grand mean
+% This was attempted but failed because the files had non-identical
+% MEG sensor-array metadata, despite matching dimensions and labels.
+% -------------------------------------------------------------------------
+
+try
+S = [];
+S.D = char(standard_pitch_files);
+S.outfile = fullfile(day1_dir, ...
+    'grandmean_20HC_standard_pitch_spm.mat');
+
+Dgrand_spm = spm_eeg_grandmean(S);
+
+fprintf('\nSPM grand mean created:\n%s\n', Dgrand_spm.fullfile);
+catch ME
+fprintf('\nSPM grand mean failed.\n');
+fprintf('Reason:\n%s\n', ME.message);
+
+spm_grandmean_error = ME;
+
+save(fullfile(day1_dir, 'spm_grandmean_error.mat'), ...
+    'spm_grandmean_error');
+end
+
+%% ------------------------------------------------------------------------
+% Step 8: Manual unweighted grand mean
+% Reason:
+% spm_eeg_grandmean failed because MEG sensor-array metadata were not
+% identical across files.
+%
+% Bad-channel handling:
+% Subject-specific bad channels are excluded using NaN/omitnan averaging.
+% -------------------------------------------------------------------------
+
+Dref = spm_eeg_load(standard_pitch_files{1});
+
+manual_grandmean_file = fullfile(day1_dir, ...
+'grandmean_20HC_standard_pitch_manual.mat');
+
+if exist(manual_grandmean_file, 'file')
+delete(manual_grandmean_file);
+end
+
+manual_grandmean_dat = strrep(manual_grandmean_file, '.mat', '.dat');
+
+if exist(manual_grandmean_dat, 'file')
+delete(manual_grandmean_dat);
+end
+
+nsubj = numel(standard_pitch_files);
+nchan = Dref.nchannels;
+ntime = length(Dref.time);
+ncond = Dref.ntrials;
+
+all_data = nan(nchan, ntime, ncond, nsubj);
+contrib_by_channel = zeros(nchan, 1);
+
+bad_channel_log = table();
+
+for i = 1:nsubj
+D = spm_eeg_load(standard_pitch_files{i});
+
+if D.nchannels ~= nchan
+    error('Channel count mismatch in %s', D.fname);
+end
+
+if length(D.time) ~= ntime
+    error('Time length mismatch in %s', D.fname);
+end
+
+if D.ntrials ~= ncond
+    error('Condition count mismatch in %s', D.fname);
+end
+
+if ~isequal(string(D.chanlabels), string(Dref.chanlabels))
+    error('Channel labels differ in %s', D.fname);
+end
+
+subj = regexp(standard_pitch_files{i}, 'sub-\d+A', 'match', 'once');
+
+Y = double(D(:,:,:));
+
+bad_idx = badchannels(D);
+good_idx = setdiff(1:nchan, bad_idx);
+
+Y(bad_idx,:,:) = NaN;
+
+all_data(:,:,:,i) = Y;
+contrib_by_channel(good_idx) = contrib_by_channel(good_idx) + 1;
+
+bad_channel_log.Index(i,1) = i;
+bad_channel_log.Subject(i,1) = string(subj);
+bad_channel_log.File(i,1) = string(D.fname);
+bad_channel_log.NBadChannels(i,1) = numel(bad_idx);
+bad_channel_log.BadChannelLabels(i,1) = ...
+    strjoin(string(D.chanlabels(bad_idx)), ', ');
+
+fprintf('%02d %s | bad channels excluded: %d\n', ...
+    i, D.fname, numel(bad_idx));
+end
+
+grand_data = mean(all_data, 4, 'omitnan');
+
+Dg = clone(Dref, manual_grandmean_file, [nchan ntime ncond]);
+
+Dg(:,:,1) = grand_data(:,:,1);
+Dg(:,:,2) = grand_data(:,:,2);
+
+Dg = conditions(Dg, 1, 'Standard');
+Dg = conditions(Dg, 2, 'Pitch Deviant');
+Dg = type(Dg, 'evoked');
+
+Dg = badchannels(Dg, 1:nchan, 0);
+
+zero_contrib = find(contrib_by_channel == 0);
+
+if ~isempty(zero_contrib)
+Dg = badchannels(Dg, zero_contrib, 1);
+end
+
+save(Dg);
+
+manual_grandmean_summary = struct();
+manual_grandmean_summary.input_files = standard_pitch_files;
+manual_grandmean_summary.output_file = manual_grandmean_file;
+manual_grandmean_summary.n_subjects = nsubj;
+manual_grandmean_summary.weighting = 'unweighted across subjects';
+manual_grandmean_summary.condition_order = {'Standard', 'Pitch Deviant'};
+manual_grandmean_summary.bad_channel_handling = ...
+'subject-specific bad channels excluded using NaN/omitnan';
+manual_grandmean_summary.contrib_by_channel = contrib_by_channel;
+manual_grandmean_summary.channel_labels = string(Dref.chanlabels);
+manual_grandmean_summary.zero_contribution_channels = ...
+string(Dref.chanlabels(zero_contrib));
+
+save(fullfile(day1_dir, 'manual_grandmean_summary.mat'), ...
+'manual_grandmean_summary');
+
+writetable(bad_channel_log, ...
+fullfile(day1_dir, 'manual_grandmean_bad_channel_log.csv'));
+
+fprintf('\nManual grand mean created:\n%s\n', manual_grandmean_file);
+
+fprintf('\nMinimum number of contributing subjects for any channel: %d\n', ...
+min(contrib_by_channel));
+
+fprintf('Maximum number of contributing subjects for any channel: %d\n', ...
+max(contrib_by_channel));
+
+if isempty(zero_contrib)
+fprintf('\nNo channels had zero contributing subjects.\n');
+else
+fprintf('\nChannels with zero contributing subjects were marked bad:\n');
+disp(string(Dref.chanlabels(zero_contrib))');
+end
+
+%% ------------------------------------------------------------------------
+% Step 9: Verify manual grand mean
+% -------------------------------------------------------------------------
+
+Dg = spm_eeg_load(manual_grandmean_file);
+conds = string(Dg.conditions);
+
+fprintf('\nManual grand mean file:\n');
+disp(Dg.fname);
+
+fprintf('\nType:\n');
+disp(Dg.type);
+
+fprintf('\nConditions:\n');
+disp(conds');
+
+fprintf('\nSampling rate: %.1f Hz\n', Dg.fsample);
+fprintf('Time window: %.1f to %.1f ms\n', ...
+Dg.time(1) * 1000, Dg.time(end) * 1000);
+fprintf('Channels: %d\n', Dg.nchannels);
+fprintf('Conditions/trials: %d\n', Dg.ntrials);
+fprintf('Bad channels in grand mean: %d\n', numel(badchannels(Dg)));
+
+if Dg.ntrials ~= 2
+error('Grand mean does not have exactly 2 conditions.');
+end
+
+if ~(conds(1) == "Standard" && conds(2) == "Pitch Deviant")
+error('Grand mean condition order is incorrect.');
+end
+
+fprintf('\nManual grand mean verified: Standard and Pitch Deviant only.\n');
+
+%% ------------------------------------------------------------------------
+% Step 10: Visual QC of manual grand mean
+% -------------------------------------------------------------------------
+
+Dg = spm_eeg_load(manual_grandmean_file);
+
+qc_dir = fullfile(day1_dir, 'grandmean_qc_plots');
+
+if ~exist(qc_dir, 'dir')
+mkdir(qc_dir);
+end
+
+conds = string(Dg.conditions);
+time_ms = Dg.time * 1000;
+
+standard_idx = find(contains(lower(conds), 'standard'), 1);
+pitch_idx = find(contains(lower(conds), 'pitch'), 1);
+
+if isempty(standard_idx) || isempty(pitch_idx)
+error('Could not identify Standard or Pitch Deviant in grand mean.');
+end
+
+Y_standard = double(squeeze(Dg(:,:,standard_idx)));
+Y_pitch = double(squeeze(Dg(:,:,pitch_idx)));
+Y_diff = Y_pitch - Y_standard;
+
+gfp_standard = sqrt(mean(Y_standard.^2, 1, 'omitnan'));
+gfp_pitch = sqrt(mean(Y_pitch.^2, 1, 'omitnan'));
+gfp_diff = sqrt(mean(Y_diff.^2, 1, 'omitnan'));
+
+figure;
+plot(time_ms, gfp_standard, 'LineWidth', 1.5);
+hold on;
+plot(time_ms, gfp_pitch, 'LineWidth', 1.5);
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Global field power');
+title('Grand mean GFP: Standard vs Pitch Deviant');
+legend({'Standard', 'Pitch Deviant'}, 'Location', 'best');
+grid on;
+saveas(gcf, fullfile(qc_dir, 'grandmean_GFP_standard_vs_pitch.png'));
+savefig(gcf, fullfile(qc_dir, 'grandmean_GFP_standard_vs_pitch.fig'));
+
+figure;
+plot(time_ms, gfp_diff, 'LineWidth', 1.5);
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Global field power of difference');
+title('Grand mean GFP: Pitch Deviant - Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir, 'grandmean_GFP_pitch_minus_standard.png'));
+savefig(gcf, fullfile(qc_dir, 'grandmean_GFP_pitch_minus_standard.fig'));
+
+figure;
+plot(time_ms, Y_standard');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Grand mean butterfly plot: Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir, 'grandmean_butterfly_standard.png'));
+savefig(gcf, fullfile(qc_dir, 'grandmean_butterfly_standard.fig'));
+
+figure;
+plot(time_ms, Y_pitch');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Grand mean butterfly plot: Pitch Deviant');
+grid on;
+saveas(gcf, fullfile(qc_dir, 'grandmean_butterfly_pitch.png'));
+savefig(gcf, fullfile(qc_dir, 'grandmean_butterfly_pitch.fig'));
+
+figure;
+plot(time_ms, Y_diff');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Grand mean butterfly plot: Pitch Deviant - Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir, 'grandmean_butterfly_pitch_minus_standard.png'));
+savefig(gcf, fullfile(qc_dir, 'grandmean_butterfly_pitch_minus_standard.fig'));
+
+[max_gfp_standard, max_idx_standard] = max(gfp_standard);
+[max_gfp_pitch, max_idx_pitch] = max(gfp_pitch);
+[max_gfp_diff, max_idx_diff] = max(gfp_diff);
+
+qc_summary = table();
+
+qc_summary.Measure = [
+"Max GFP Standard";
+"Max GFP Pitch Deviant";
+"Max GFP Pitch minus Standard"
+];
+
+qc_summary.Value = [
+max_gfp_standard;
+max_gfp_pitch;
+max_gfp_diff
+];
+
+qc_summary.Time_ms = [
+time_ms(max_idx_standard);
+time_ms(max_idx_pitch);
+time_ms(max_idx_diff)
+];
+
+disp(qc_summary);
+
+save(fullfile(qc_dir, 'grandmean_qc_summary.mat'), ...
+'qc_summary', 'gfp_standard', 'gfp_pitch', 'gfp_diff', ...
+'Y_standard', 'Y_pitch', 'Y_diff', 'time_ms');
+
+writetable(qc_summary, ...
+fullfile(qc_dir, 'grandmean_qc_summary.csv'));
+
+fprintf('\nGrand mean QC plots saved in:\n%s\n', qc_dir);
+
+%% ------------------------------------------------------------------------
+% Step 11: Extra QC of manual grand mean
+% -------------------------------------------------------------------------
+
+Dg = spm_eeg_load(manual_grandmean_file);
+
+conds = string(Dg.conditions);
+time_ms = Dg.time * 1000;
+
+standard_idx = find(contains(lower(conds), 'standard'), 1);
+pitch_idx = find(contains(lower(conds), 'pitch'), 1);
+
+Y_standard = double(squeeze(Dg(:,:,standard_idx)));
+Y_pitch = double(squeeze(Dg(:,:,pitch_idx)));
+Y_diff = Y_pitch - Y_standard;
+
+baseline_idx = time_ms >= -100 & time_ms <= 0;
+
+baseline_standard = mean(Y_standard(:,baseline_idx), 2);
+baseline_pitch = mean(Y_pitch(:,baseline_idx), 2);
+baseline_diff = mean(Y_diff(:,baseline_idx), 2);
+
+fprintf('\nBaseline QC before final grand-mean baseline correction:\n');
+fprintf('Mean abs baseline Standard: %.4f\n', mean(abs(baseline_standard)));
+fprintf('Mean abs baseline Pitch: %.4f\n', mean(abs(baseline_pitch)));
+fprintf('Mean abs baseline Pitch-Standard: %.4f\n', mean(abs(baseline_diff)));
+
+gfp_diff = sqrt(mean(Y_diff.^2, 1, 'omitnan'));
+[~, max_diff_idx] = max(gfp_diff);
+
+fprintf('\nMaximum difference GFP occurs at %.1f ms\n', ...
+time_ms(max_diff_idx));
+
+diff_at_peak = abs(Y_diff(:,max_diff_idx));
+[sorted_vals, sorted_idx] = sort(diff_at_peak, 'descend');
+
+top_n = 10;
+
+top_channels = table();
+top_channels.Rank = (1:top_n)';
+top_channels.Channel = string(Dg.chanlabels(sorted_idx(1:top_n)))';
+top_channels.AbsDifferenceAtPeak = sorted_vals(1:top_n);
+
+disp(top_channels);
+
+writetable(top_channels, ...
+fullfile(qc_dir, 'top_channels_pitch_standard_peak.csv'));
+
+save(fullfile(qc_dir, 'extra_qc_manual_grandmean.mat'), ...
+'baseline_standard', 'baseline_pitch', 'baseline_diff', ...
+'top_channels');
+
+%% ------------------------------------------------------------------------
+% Step 12: Baseline-correct manual grand mean for DCM input
+% -------------------------------------------------------------------------
+
+Dg = spm_eeg_load(manual_grandmean_file);
+
+baseline_corrected_grandmean_file = fullfile(day1_dir, ...
+'grandmean_20HC_standard_pitch_manual_bc.mat');
+
+if exist(baseline_corrected_grandmean_file, 'file')
+delete(baseline_corrected_grandmean_file);
+end
+
+baseline_corrected_dat = strrep(baseline_corrected_grandmean_file, '.mat', '.dat');
+
+if exist(baseline_corrected_dat, 'file')
+delete(baseline_corrected_dat);
+end
+
+time_ms = Dg.time * 1000;
+baseline_idx = time_ms >= -100 & time_ms <= 0;
+
+Dgbc = clone(Dg, baseline_corrected_grandmean_file, ...
+[Dg.nchannels length(Dg.time) Dg.ntrials]);
+
+for c = 1:Dg.ntrials
+Y = double(squeeze(Dg(:,:,c)));
+baseline_mean = mean(Y(:,baseline_idx), 2);
+Ybc = Y - baseline_mean;
+
+Dgbc(:,:,c) = Ybc;
+end
+
+Dgbc = conditions(Dgbc, 1, 'Standard');
+Dgbc = conditions(Dgbc, 2, 'Pitch Deviant');
+Dgbc = type(Dgbc, 'evoked');
+
+Dgbc = badchannels(Dgbc, 1:Dgbc.nchannels, 0);
+
+save(Dgbc);
+
+fprintf('\nBaseline-corrected grand mean created:\n%s\n', ...
+baseline_corrected_grandmean_file);
+
+%% ------------------------------------------------------------------------
+% Step 13: Verify baseline-corrected grand mean
+% -------------------------------------------------------------------------
+
+Dgbc = spm_eeg_load(baseline_corrected_grandmean_file);
+
+conds = string(Dgbc.conditions);
+time_ms = Dgbc.time * 1000;
+
+standard_idx = find(contains(lower(conds), 'standard'), 1);
+pitch_idx = find(contains(lower(conds), 'pitch'), 1);
+
+Y_standard = double(squeeze(Dgbc(:,:,standard_idx)));
+Y_pitch = double(squeeze(Dgbc(:,:,pitch_idx)));
+Y_diff = Y_pitch - Y_standard;
+
+baseline_idx = time_ms >= -100 & time_ms <= 0;
+
+baseline_standard = mean(Y_standard(:,baseline_idx), 2);
+baseline_pitch = mean(Y_pitch(:,baseline_idx), 2);
+baseline_diff = mean(Y_diff(:,baseline_idx), 2);
+
+fprintf('\nBaseline QC after grand-mean baseline correction:\n');
+fprintf('Mean abs baseline Standard: %.8f\n', mean(abs(baseline_standard)));
+fprintf('Mean abs baseline Pitch: %.8f\n', mean(abs(baseline_pitch)));
+fprintf('Mean abs baseline Pitch-Standard: %.8f\n', mean(abs(baseline_diff)));
+
+fprintf('\nFile type: %s\n', Dgbc.type);
+fprintf('Conditions: %s | %s\n', conds(1), conds(2));
+fprintf('Sampling rate: %.1f Hz\n', Dgbc.fsample);
+fprintf('Time window: %.1f to %.1f ms\n', ...
+Dgbc.time(1) * 1000, Dgbc.time(end) * 1000);
+fprintf('Channels: %d\n', Dgbc.nchannels);
+fprintf('Conditions/trials: %d\n', Dgbc.ntrials);
+fprintf('Bad channels: %d\n', numel(badchannels(Dgbc)));
+
+if Dgbc.ntrials ~= 2
+error('Baseline-corrected grand mean does not have exactly 2 conditions.');
+end
+
+if ~(conds(1) == "Standard" && conds(2) == "Pitch Deviant")
+error('Baseline-corrected grand mean condition order is incorrect.');
+end
+
+%% ------------------------------------------------------------------------
+% Step 14: Regenerate final QC plots from baseline-corrected DCM file
+% -------------------------------------------------------------------------
+
+Dg = spm_eeg_load(baseline_corrected_grandmean_file);
+
+qc_dir_bc = fullfile(day1_dir, ...
+'grandmean_qc_plots_baseline_corrected');
+
+if ~exist(qc_dir_bc, 'dir')
+mkdir(qc_dir_bc);
+end
+
+conds = string(Dg.conditions);
+time_ms = Dg.time * 1000;
+
+standard_idx = find(contains(lower(conds), 'standard'), 1);
+pitch_idx = find(contains(lower(conds), 'pitch'), 1);
+
+Y_standard = double(squeeze(Dg(:,:,standard_idx)));
+Y_pitch = double(squeeze(Dg(:,:,pitch_idx)));
+Y_diff = Y_pitch - Y_standard;
+
+gfp_standard = sqrt(mean(Y_standard.^2, 1, 'omitnan'));
+gfp_pitch = sqrt(mean(Y_pitch.^2, 1, 'omitnan'));
+gfp_diff = sqrt(mean(Y_diff.^2, 1, 'omitnan'));
+
+figure;
+plot(time_ms, gfp_standard, 'LineWidth', 1.5);
+hold on;
+plot(time_ms, gfp_pitch, 'LineWidth', 1.5);
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Global field power');
+title('Baseline-corrected grand mean GFP: Standard vs Pitch Deviant');
+legend({'Standard', 'Pitch Deviant'}, 'Location', 'best');
+grid on;
+saveas(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_GFP_standard_vs_pitch.png'));
+savefig(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_GFP_standard_vs_pitch.fig'));
+
+figure;
+plot(time_ms, gfp_diff, 'LineWidth', 1.5);
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Global field power of difference');
+title('Baseline-corrected grand mean GFP: Pitch Deviant - Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_GFP_pitch_minus_standard.png'));
+savefig(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_GFP_pitch_minus_standard.fig'));
+
+figure;
+plot(time_ms, Y_standard');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Baseline-corrected grand mean butterfly plot: Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_standard.png'));
+savefig(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_standard.fig'));
+
+figure;
+plot(time_ms, Y_pitch');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Baseline-corrected grand mean butterfly plot: Pitch Deviant');
+grid on;
+saveas(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_pitch.png'));
+savefig(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_pitch.fig'));
+
+figure;
+plot(time_ms, Y_diff');
+xline(0, '--');
+xlabel('Time (ms)');
+ylabel('Amplitude');
+title('Baseline-corrected grand mean butterfly plot: Pitch Deviant - Standard');
+grid on;
+saveas(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_pitch_minus_standard.png'));
+savefig(gcf, fullfile(qc_dir_bc, ...
+'bc_grandmean_butterfly_pitch_minus_standard.fig'));
+
+[max_gfp_standard, max_idx_standard] = max(gfp_standard);
+[max_gfp_pitch, max_idx_pitch] = max(gfp_pitch);
+[max_gfp_diff, max_idx_diff] = max(gfp_diff);
+
+qc_summary_bc = table();
+
+qc_summary_bc.Measure = [
+"Max GFP Standard";
+"Max GFP Pitch Deviant";
+"Max GFP Pitch minus Standard"
+];
+
+qc_summary_bc.Value = [
+max_gfp_standard;
+max_gfp_pitch;
+max_gfp_diff
+];
+
+qc_summary_bc.Time_ms = [
+time_ms(max_idx_standard);
+time_ms(max_idx_pitch);
+time_ms(max_idx_diff)
+];
+
+disp(qc_summary_bc);
+
+save(fullfile(qc_dir_bc, 'bc_grandmean_qc_summary.mat'), ...
+'qc_summary_bc', 'gfp_standard', 'gfp_pitch', 'gfp_diff', ...
+'Y_standard', 'Y_pitch', 'Y_diff', 'time_ms');
+
+writetable(qc_summary_bc, ...
+fullfile(qc_dir_bc, 'bc_grandmean_qc_summary.csv'));
+
+fprintf('\nBaseline-corrected grand mean QC plots saved in:\n%s\n', ...
+qc_dir_bc);
+
+%% ------------------------------------------------------------------------
+% Step 15: Open final baseline-corrected QC plots for inspection
+% -------------------------------------------------------------------------
+
+fig_files = {
+'bc_grandmean_GFP_standard_vs_pitch.fig'
+'bc_grandmean_GFP_pitch_minus_standard.fig'
+'bc_grandmean_butterfly_standard.fig'
+'bc_grandmean_butterfly_pitch.fig'
+'bc_grandmean_butterfly_pitch_minus_standard.fig'
+};
+
+for i = 1:numel(fig_files)
+openfig(fullfile(qc_dir_bc, fig_files{i}));
+end
+
+%% ------------------------------------------------------------------------
+% Final DCM input file
+% -------------------------------------------------------------------------
+
+fprintf('\nFinal DCM-ready grand mean file:\n%s\n', ...
+baseline_corrected_grandmean_file);
+
+fprintf('\nUse this in DCM scripts as:\n');
+fprintf('DCM.xY.Dfile = ''%s'';\n', baseline_corrected_grandmean_file);
