@@ -1,0 +1,214 @@
+# Thursday 9 July 2026
+## DCM Day 1: Grand-mean preparation for Standard vs Pitch Deviant modelling
+**Project:** Neurotransmitter Receptor-Informed Dynamic Causal Modelling of Auditory MEG  
+**Dataset:** OpenNeuro ds004837  
+**Software:** MATLAB and SPM  
+**Main working directory:** `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean`
+
+---
+
+## Main objective
+
+Create a DCM-ready group grand mean for the retained healthy-control cohort, using only the **Standard** and **Pitch Deviant** conditions. This is the first practical step of the integrated source reconstruction and DCM modelling stage.
+
+## Inputs
+
+- 19 main healthy-control final averaged files from `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm`.
+- 1 pilot final averaged file from `/Users/klauskrause/Documents/MATLAB/ds004837_spm_test/maflp_fhp_dbe2_sub-2247A_run-01.mat`.
+- Total retained group size used today: **20 participants**.
+- Final participant-level averaged files had 3 conditions, 200 Hz sampling rate, -100 to 300 ms epoch window, and 102 MEG channels.
+
+## Work completed
+
+### 1. Created a dedicated DCM Day 1 working folder
+
+A new working folder was used for the grand-mean preparation stage:
+
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean
+```
+
+### 2. Identified and loaded the 20 retained participant-level averaged files
+
+The main controls folder provided 19 retained healthy-control final averaged files. The pilot participant `sub-2247A` was added from the separate pilot preprocessing folder. All 20 files were confirmed to exist and load in SPM.
+
+### 3. Checked condition order and discovered inconsistent condition order across participants
+
+A condition-order check showed that some files stored the conditions as `Standard, Pitch Deviant, Duration Deviant`, while seven files stored them as `Standard, Duration Deviant, Pitch Deviant`. The affected files were:
+
+`sub-2218A`, `sub-2227A`, `sub-2237A`, `sub-2242A`, `sub-2269A`, `sub-2286A`, and `sub-2350A`.
+
+This meant that condition index alone could not safely be used for grand averaging. Condition labels had to be used.
+
+### 4. Created standardized two-condition files
+
+For each participant, a new SPM M/EEG file was created containing only two conditions in a fixed order:
+
+1. `Standard`
+2. `Pitch Deviant`
+
+The standardized files were saved as:
+
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/standard_pitch_subject_files/sp_sub-<ID>_standard_pitch.mat
+```
+
+Verification showed that all 20 standardized files had condition order `Standard, Pitch Deviant`, sampling rate 200 Hz, time window -100 to 300 ms, and 102 channels.
+
+### 5. Attempted SPM grand mean and diagnosed failure
+
+`spm_eeg_grandmean` was attempted but failed with a FieldTrip sensor-array metadata error:
+
+```text
+all sensor arrays should have the same sensors for averaging
+```
+
+A diagnostic check showed that this was not because of channel labels, dimensions, sampling rate, time window, or condition labels. All standardized files had the same 102 channel labels, type `evoked`, 200 Hz sampling rate, and -100 to 300 ms time window. The likely issue was deeper MEG sensor-array metadata, not the participant-specific bad-channel lists.
+
+### 6. Created a controlled manual unweighted grand mean
+
+Because SPM's automated grand mean failed at the sensor-metadata stage, a manual unweighted grand mean was created. For each participant, subject-specific bad channels were excluded using `NaN`, and the average was then computed using `omitnan`.
+
+This means that a channel marked bad in one participant did not contribute that participant's value to that channel's grand mean, but the same channel could still contribute from other participants where it was good.
+
+### Bad-channel contribution table
+
+| Participant | Bad channels excluded |
+|---|---:|
+| sub-2218A | 5 |
+| sub-2221A | 6 |
+| sub-2227A | 3 |
+| sub-2237A | 7 |
+| sub-2242A | 7 |
+| sub-2245A | 7 |
+| sub-2246A | 5 |
+| sub-2252A | 0 |
+| sub-2253A | 13 |
+| sub-2259A | 1 |
+| sub-2262A | 4 |
+| sub-2268A | 3 |
+| sub-2269A | 2 |
+| sub-2286A | 2 |
+| sub-2320A | 3 |
+| sub-2328A | 2 |
+| sub-2342A | 2 |
+| sub-2350A | 4 |
+| sub-2355A | 2 |
+| sub-2247A | 3 |
+
+Grand-mean contribution range:
+
+- Minimum contributing subjects for any channel: **15**
+- Maximum contributing subjects for any channel: **20**
+- Channels with zero contributing subjects: **none**
+
+The manual grand mean was saved as:
+
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual.mat
+```
+
+Verification showed:
+
+| Property | Value |
+|---|---|
+| Type | evoked |
+| Conditions | Standard; Pitch Deviant |
+| Sampling rate | 200 Hz |
+| Time window | -100 to 300 ms |
+| Channels | 102 |
+| Conditions/trials | 2 |
+| Bad channels in grand mean | 0 |
+
+### 7. Performed baseline QC and created a baseline-corrected DCM-ready file
+
+The manual grand mean showed a residual baseline offset when checked numerically:
+
+| Measure before final correction | Mean absolute baseline |
+|---|---:|
+| Standard | 17.3594 |
+| Pitch Deviant | 17.6286 |
+| Pitch Deviant - Standard | 12.1100 |
+
+This did not mean that preprocessing had failed, but for DCM it is cleaner to use a file where the final grand mean is re-centred to the -100 to 0 ms baseline. Therefore, a baseline-corrected copy was created:
+
+```text
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat
+```
+
+Baseline verification after correction showed:
+
+| Measure after final correction | Mean absolute baseline |
+|---|---:|
+| Standard | 0.00000004 |
+| Pitch Deviant | 0.00000005 |
+| Pitch Deviant - Standard | 0.00000006 |
+
+The baseline-corrected file was verified as type `evoked`, with two conditions, 102 channels, 200 Hz sampling rate, -100 to 300 ms time window, and no bad channels marked.
+
+### 8. Visual QC of the baseline-corrected grand mean
+
+#### GFP: Standard vs Pitch Deviant
+
+Shows overall sensor-level response strength for the two conditions. The response rises after sound onset, with broadly similar Standard and Pitch Deviant morphology and stronger Pitch Deviant activity at several post-stimulus periods. Judgement: acceptable and useful.
+
+#### GFP: Pitch Deviant - Standard
+
+Shows when the two conditions differ most strongly across sensors. The difference is low during baseline and rises clearly after sound onset, with a strong early effect around 100-120 ms and a later effect around 240-280 ms. Judgement: good evidence that the Pitch Deviant contrast is present.
+
+#### Butterfly: Standard
+
+Shows all 102 channel waveforms for the Standard condition. The baseline is centred near zero and the post-stimulus activity is structured across many channels rather than one obvious rogue channel. Judgement: good.
+
+#### Butterfly: Pitch Deviant
+
+Shows all 102 channel waveforms for the Pitch Deviant condition. The baseline is also clean and the evoked response is somewhat stronger/more complex than Standard in the expected post-stimulus period. Judgement: good.
+
+#### Butterfly: Pitch Deviant - Standard
+
+Shows channel-level difference waves. The pre-stimulus difference is small compared with the post-stimulus response, and the main difference is distributed across channels around 100-150 ms. Judgement: acceptable and not obviously dominated by a single bad sensor.
+
+Overall visual QC judgement: the baseline-corrected grand mean is acceptable for proceeding to DCM model setup. The Standard and Pitch Deviant responses are clearly structured, the Pitch Deviant contrast is present around 100-150 ms, and the difference is not obviously dominated by one rogue channel. A strong late response around 250-300 ms should be documented and kept in mind when fitting over the full -100 to 300 ms DCM window.
+
+## Final outputs created today
+
+| Output | Path |
+|---|---|
+| Standardized two-condition files | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/standard_pitch_subject_files/sp_sub-<ID>_standard_pitch.mat` |
+| Standard/Pitch file log | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/day1_standard_pitch_file_log.csv` |
+| Sensor diagnostic | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/day1_sensor_diagnostic.csv` |
+| Manual grand mean audit file | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual.mat` |
+| Final DCM-ready grand mean | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat` |
+| Manual grand mean summary | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/manual_grandmean_summary.mat` |
+| Bad-channel log | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/manual_grandmean_bad_channel_log.csv` |
+| Baseline-corrected QC plots | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_qc_plots_baseline_corrected/` |
+
+## Final DCM input candidate
+
+The recommended DCM input file is:
+
+```matlab
+DCM.xY.Dfile = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat';
+```
+
+## Interpretation
+
+The main task for today was completed successfully. A clean group-level Standard/Pitch Deviant grand mean was created across 20 retained healthy-control participants. The condition-order issue was resolved by creating standardized two-condition files. The automated SPM grand mean failed because of MEG sensor-array metadata differences, but a controlled manual grand mean was produced in a transparent and auditable way, with subject-specific bad channels excluded from the average. A final baseline-corrected copy was then created and verified.
+
+## Caveats to document
+
+1. The grand mean is a manual unweighted grand mean, not a direct `spm_eeg_grandmean` output.
+2. The file uses the first standardized participant file as the SPM template, because the direct SPM/FieldTrip sensor-array averaging step failed.
+3. Subject-specific bad channels were excluded during averaging, which is the correct handling, but the resulting grand mean should be described clearly.
+4. The baseline-corrected file should be used for DCM, while the non-baseline-corrected manual grand mean should be retained as an audit file.
+5. A strong late response is visible around 250-300 ms, so this should be considered when fitting a DCM over the full epoch window.
+
+## Next steps
+
+1. Use `grandmean_20HC_standard_pitch_manual_bc.mat` as the input file for DCM model setup.
+2. Build the six-source CMC DCM structure using the Phillips frequency-deviant architecture.
+3. Confirm source order and source coordinates for bilateral A1, bilateral STG, and bilateral IFG.
+4. Specify and check A, B, and C matrices before inversion.
+5. Confirm that intrinsic and extrinsic parameters are allowed to vary as planned.
+6. Start with a standard CMC DCM before inserting receptor-informed priors.
+
