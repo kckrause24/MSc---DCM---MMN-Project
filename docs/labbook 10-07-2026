@@ -1,0 +1,183 @@
+# Lab Book Entry - Friday 10 July 2026
+
+## DCM Day 2: Baseline CMC model-structure construction
+
+**Project:** MSc thesis project - neurotransmitter receptor-informed DCM of auditory MEG responses  
+**Stage:** Source/DCM modelling preparation  
+**Status:** Model structure verified; no DCM inversion run
+
+---
+
+## Objective
+
+The objective today was to construct and verify the baseline six-source CMC DCM structure for the 20-participant grand mean created on Day 1. The aim was not to invert the DCM yet, but to prepare a clean, documented model-structure file for subsequent baseline CMC inversion and later receptor-informed DCM comparison.
+
+The final Day 1 input file used for DCM setup was:
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat
+```
+
+This file contains two conditions:
+
+1. Standard
+2. Pitch Deviant
+
+---
+
+## Working directory
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day2_ModelStructure
+```
+
+---
+
+## Input data verification
+
+The Day 1 baseline-corrected grand mean was loaded and verified before model construction.
+
+| Check | Result |
+|---|---:|
+| File type | evoked |
+| Sampling rate | 200 Hz |
+| Time window | -100 to 300 ms |
+| Channels | 102 |
+| Conditions/trials | 2 |
+| Bad channels | 0 |
+| Condition 1 | Standard |
+| Condition 2 | Pitch Deviant |
+
+The file passed all checks and was accepted as the DCM input file for model-structure construction.
+
+---
+
+## Source model
+
+The DCM source model was defined as a six-source auditory hierarchy based on the Phillips et al. frequency-deviant model architecture. The source order was fixed because this order determines the interpretation of all A, B, and C matrices.
+
+| Source number | Source name | MNI X | MNI Y | MNI Z |
+|---:|---|---:|---:|---:|
+| 1 | left A1 | -42 | -22 | 7 |
+| 2 | right A1 | 46 | -14 | 8 |
+| 3 | left STG | -61 | -32 | 8 |
+| 4 | right STG | 59 | -25 | 8 |
+| 5 | left IFG | -46 | 20 | 8 |
+| 6 | right IFG | 46 | 20 | 8 |
+
+The right-hemisphere coordinates were aligned with the Phillips source set, and the left IFG coordinate was implemented as the mirrored homologue of the right IFG coordinate.
+
+---
+
+## Model architecture
+
+The model was implemented as a working version of the Phillips et al. frequency-deviant winning architecture, model 12.
+
+The model includes:
+
+- sensory driving input to bilateral A1;
+- bidirectional A1-STG connections within each hemisphere;
+- bidirectional STG-IFG connections within each hemisphere;
+- lateral IFG-to-IFG connectivity;
+- Pitch Deviant modulation of included extrinsic connections;
+- intrinsic modulation of bilateral A1 in the B matrix;
+- no IFG expectancy input.
+
+The absence of IFG expectancy input is important because the current model targets the pitch/frequency deviant, not the duration/gap temporal-structure deviants.
+
+---
+
+## Connectivity summary
+
+The final edge table confirmed the intended model structure.
+
+| Source | Target | Type |
+|---|---|---|
+| left A1 | left STG | Forward |
+| right A1 | right STG | Forward |
+| left STG | left IFG | Forward |
+| right STG | right IFG | Forward |
+| left STG | left A1 | Backward |
+| right STG | right A1 | Backward |
+| left IFG | left STG | Backward |
+| right IFG | right STG | Backward |
+| left IFG | right IFG | Lateral |
+| right IFG | left IFG | Lateral |
+
+In compact form, the structure is:
+
+```text
+left A1  <-> left STG  <-> left IFG
+right A1 <-> right STG <-> right IFG
+left IFG <-> right IFG
+```
+
+---
+
+## DCM options
+
+| Option | Value |
+|---|---|
+| Analysis | ERP |
+| Neural model | CMC |
+| Spatial model | IMG |
+| Trials | [1 2] |
+| Time window | [-100 300] ms |
+| Nmodes | 8 |
+| Hanning | 1 |
+
+---
+
+## Files generated
+
+| File/folder | Purpose |
+|---|---|
+| `day2_dcm_source_locations.csv` | Human-readable source coordinate table |
+| `day2_dcm_source_locations.mat` | MATLAB source names, locations, and source table |
+| `day2_phillips_model12_ABC_matrices.mat` | Saved A, B, and C matrices for model 12 |
+| `DCM_20HC_standard_pitch_CMC_6source_model12_preliminary.mat` | Preliminary DCM structure before final verification metadata |
+| `day2_visual_model_checks/` | Matrix plots, network diagram, and edge table |
+| `model12_edge_table.csv` | Source-target edge table for visual inspection |
+| `day2_visual_model_check_summary.mat` | Saved visual inspection summary |
+| `DCM_20HC_standard_pitch_CMC_6source_model12_VERIFIED_NOT_INVERTED.mat` | Final verified Day 2 DCM structure |
+
+---
+
+## Final verified DCM file
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day2_ModelStructure/DCM_20HC_standard_pitch_CMC_6source_model12_VERIFIED_NOT_INVERTED.mat
+```
+
+This file has been verified as a model-structure file only. No DCM inversion has been run.
+
+---
+
+## Decisions and notes
+
+- The source order was defined explicitly and should be preserved in all subsequent scripts.
+- The matrix convention is `A(target, source) = 1`, meaning rows are targets and columns are sources of influence.
+- The network plot required transposing the combined A matrix because MATLAB `digraph` expects adjacency in the form `source -> target`.
+- A safety check was included to ensure that IFG expectancy input was absent from the pitch/frequency model.
+- The DCM is ready for subsequent inversion preparation, but has not yet been fitted.
+
+---
+
+## Outcome
+
+Day 2 was completed successfully. A verified six-source CMC DCM structure was created for the Standard vs Pitch Deviant grand mean. The model follows Phillips et al. model 12 for the frequency/pitch deviant, with bilateral A1, bilateral STG, bilateral IFG, bidirectional within-hemisphere hierarchy, and lateral IFG-to-IFG connectivity. Auditory input enters bilateral A1 only. No inversion was run today.
+
+---
+
+## Next step
+
+The next stage is Day 3: prepare the inversion environment and run the baseline CMC DCM fit from the verified model-structure file.
+
+---
+
+## Associated code
+
+The full MATLAB code for today is saved separately as:
+
+```text
+dcm_day2_model_structure_2026_07_10.m
