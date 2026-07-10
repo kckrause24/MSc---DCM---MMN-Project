@@ -1,0 +1,578 @@
+% ========================================================================
+% MSc Thesis Project
+% DCM Day 2: Build and verify baseline CMC DCM structure
+% Date: Friday 10 July 2026
+%
+% Purpose:
+% 1. Load the final Day 1 baseline-corrected grand mean.
+% 2. Verify it is suitable for DCM model setup.
+% 3. Define the six-source auditory DCM network using Phillips et al. 2015
+%    frequency-deviant winning architecture (model 12).
+% 4. Define A, B, and C matrices.
+% 5. Build, save, and visually verify the DCM structure.
+%
+% Important:
+% This script creates the DCM structure only.
+% It does NOT invert or fit the DCM.
+% ========================================================================
+
+
+%% ------------------------------------------------------------------------
+% Step 0: Define paths
+% -------------------------------------------------------------------------
+
+clear;
+clc;
+
+main_controls_dir = '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm';
+
+day1_dir = fullfile(main_controls_dir, 'DCM_Day1_GrandMean');
+day2_dir = fullfile(main_controls_dir, 'DCM_Day2_ModelStructure');
+
+if ~exist(day2_dir, 'dir')
+    mkdir(day2_dir);
+end
+
+cd(day2_dir);
+
+dcm_input_file = fullfile(day1_dir, ...
+    'grandmean_20HC_standard_pitch_manual_bc.mat');
+
+if ~exist(dcm_input_file, 'file')
+    error('DCM input file not found:\n%s', dcm_input_file);
+end
+
+fprintf('\nDay 2 working directory:\n%s\n', pwd);
+fprintf('\nDCM input file:\n%s\n', dcm_input_file);
+
+
+%% ------------------------------------------------------------------------
+% Step 1: Load and verify final Day 1 grand mean
+% -------------------------------------------------------------------------
+
+D = spm_eeg_load(dcm_input_file);
+
+conds = string(D.conditions);
+
+fprintf('\nLoaded DCM input file:\n');
+disp(D.fname);
+
+fprintf('\nType: %s\n', D.type);
+fprintf('Sampling rate: %.1f Hz\n', D.fsample);
+fprintf('Time window: %.1f to %.1f ms\n', D.time(1)*1000, D.time(end)*1000);
+fprintf('Channels: %d\n', D.nchannels);
+fprintf('Conditions/trials: %d\n', D.ntrials);
+fprintf('Bad channels: %d\n', numel(badchannels(D)));
+
+fprintf('\nConditions:\n');
+disp(conds');
+
+if ~strcmp(D.type, 'evoked')
+    error('DCM input file is not evoked.');
+end
+
+if D.ntrials ~= 2
+    error('Expected exactly 2 conditions: Standard and Pitch Deviant.');
+end
+
+if ~(conds(1) == "Standard" && conds(2) == "Pitch Deviant")
+    error('Condition order should be Standard, Pitch Deviant.');
+end
+
+if D.fsample ~= 200
+    error('Expected sampling rate of 200 Hz.');
+end
+
+if round(D.time(1)*1000) ~= -100 || round(D.time(end)*1000) ~= 300
+    error('Expected time window -100 to 300 ms.');
+end
+
+fprintf('\nGrand mean verified for Day 2 DCM model setup.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 2: Define six-source auditory DCM network
+% -------------------------------------------------------------------------
+% Source order:
+% 1 = left A1
+% 2 = right A1
+% 3 = left STG
+% 4 = right STG
+% 5 = left IFG
+% 6 = right IFG
+%
+% Coordinates are aligned to Phillips et al. 2015 source locations.
+% The left IFG coordinate is the mirrored homologue of the right IFG
+% coordinate used in the Phillips source set.
+
+source_names = {
+    'left A1'
+    'right A1'
+    'left STG'
+    'right STG'
+    'left IFG'
+    'right IFG'
+};
+
+source_locations = [
+    -42  -22   7     % 1 left A1
+     46  -14   8     % 2 right A1
+    -61  -32   8     % 3 left STG
+     59  -25   8     % 4 right STG
+    -46   20   8     % 5 left IFG
+     46   20   8     % 6 right IFG
+];
+
+source_table = table();
+source_table.SourceNumber = (1:6)';
+source_table.SourceName = string(source_names);
+source_table.MNI_X = source_locations(:,1);
+source_table.MNI_Y = source_locations(:,2);
+source_table.MNI_Z = source_locations(:,3);
+
+disp(source_table);
+
+writetable(source_table, fullfile(day2_dir, ...
+    'day2_dcm_source_locations.csv'));
+
+save(fullfile(day2_dir, 'day2_dcm_source_locations.mat'), ...
+    'source_names', 'source_locations', 'source_table');
+
+fprintf('\nSix-source DCM network defined and saved.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 3: Define Phillips frequency-deviant model 12 A/B/C matrices
+% -------------------------------------------------------------------------
+% Model architecture:
+% - Sensory input to bilateral A1
+% - Bidirectional A1 <-> STG within each hemisphere
+% - Bidirectional STG <-> IFG within each hemisphere
+% - Lateral IFG <-> IFG connection
+% - Intrinsic A1 modulation included in B matrix
+% - No prefrontal expectancy input for the frequency/pitch model
+
+n_sources = 6;
+
+A = cell(3,1);
+A{1} = zeros(n_sources);   % forward connections
+A{2} = zeros(n_sources);   % backward connections
+A{3} = zeros(n_sources);   % lateral connections
+
+% A{1}: forward connections. Convention: A(target, source) = 1
+A{1}(3,1) = 1;   % left A1  -> left STG
+A{1}(4,2) = 1;   % right A1 -> right STG
+A{1}(5,3) = 1;   % left STG  -> left IFG
+A{1}(6,4) = 1;   % right STG -> right IFG
+
+% A{2}: backward connections
+A{2}(1,3) = 1;   % left STG  -> left A1
+A{2}(2,4) = 1;   % right STG -> right A1
+A{2}(3,5) = 1;   % left IFG  -> left STG
+A{2}(4,6) = 1;   % right IFG -> right STG
+
+% A{3}: lateral connections. Model 12 has IFG-to-IFG lateral only.
+A{3}(6,5) = 1;   % left IFG  -> right IFG
+A{3}(5,6) = 1;   % right IFG -> left IFG
+
+% B{1}: Pitch Deviant modulation
+B = cell(1,1);
+B{1} = double((A{1} + A{2} + A{3}) > 0);
+B{1}(1,1) = 1;   % left A1 intrinsic modulation
+B{1}(2,2) = 1;   % right A1 intrinsic modulation
+
+% C: auditory driving input to bilateral A1
+C = zeros(n_sources,1);
+C(1,1) = 1;      % auditory input to left A1
+C(2,1) = 1;      % auditory input to right A1
+
+save(fullfile(day2_dir, 'day2_phillips_model12_ABC_matrices.mat'), ...
+    'A', 'B', 'C', 'source_names', 'source_locations', 'source_table');
+
+fprintf('\nPhillips frequency-deviant model 12 A/B/C matrices defined and saved.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 4: Display matrices for inspection
+% -------------------------------------------------------------------------
+
+valid_source_names = matlab.lang.makeValidName(source_names);
+
+fprintf('\nA{1}: Forward connections\n');
+disp(array2table(A{1}, ...
+    'VariableNames', valid_source_names, ...
+    'RowNames', valid_source_names));
+
+fprintf('\nA{2}: Backward connections\n');
+disp(array2table(A{2}, ...
+    'VariableNames', valid_source_names, ...
+    'RowNames', valid_source_names));
+
+fprintf('\nA{3}: Lateral connections\n');
+disp(array2table(A{3}, ...
+    'VariableNames', valid_source_names, ...
+    'RowNames', valid_source_names));
+
+fprintf('\nB{1}: Pitch Deviant modulation\n');
+disp(array2table(B{1}, ...
+    'VariableNames', valid_source_names, ...
+    'RowNames', valid_source_names));
+
+fprintf('\nC: Auditory input\n');
+disp(array2table(C, ...
+    'VariableNames', {'AuditoryInput'}, ...
+    'RowNames', valid_source_names));
+
+fprintf('\nMatrix interpretation reminder:\n');
+fprintf('Rows = target source\n');
+fprintf('Columns = source/source of influence\n');
+fprintf('A(target, source) = 1 means source influences target\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 5: Build preliminary DCM structure
+% -------------------------------------------------------------------------
+% This creates the DCM structure only. It does not invert/fit the model.
+
+DCM = [];
+
+DCM.xY.Dfile = dcm_input_file;
+DCM.options.trials = [1 2];
+DCM.options.Tdcm = [-100 300];
+DCM.options.analysis = 'ERP';
+DCM.options.model    = 'CMC';
+DCM.options.spatial  = 'IMG';
+DCM.options.Nmodes = 8;
+DCM.options.h      = 1;
+DCM.options.onset  = 60;
+DCM.options.D      = 1;
+DCM.options.han    = 1;
+
+DCM.Sname = source_names(:)';
+DCM.Lpos  = source_locations';
+DCM.A = A;
+DCM.B = B;
+DCM.C = C;
+
+DCM.model_note = [
+    "Phillips et al. 2015 frequency-deviant winning architecture; " + ...
+    "model 12 working implementation; six-source CMC DCM; " + ...
+    "bilateral A1, bilateral STG, bilateral IFG; " + ...
+    "lateral IFG-to-IFG connection; no prefrontal expectancy input."
+];
+
+DCM.source_order = source_table;
+
+prelim_dcm_file = fullfile(day2_dir, ...
+    'DCM_20HC_standard_pitch_CMC_6source_model12_preliminary.mat');
+
+save(prelim_dcm_file, 'DCM');
+
+fprintf('\nPreliminary DCM structure saved:\n%s\n', prelim_dcm_file);
+fprintf('\nImportant: this DCM has NOT been inverted yet.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 6: Verify saved DCM structure
+% -------------------------------------------------------------------------
+
+load(prelim_dcm_file, 'DCM');
+
+fprintf('\nSaved DCM structure loaded successfully.\n');
+
+fprintf('\nDCM input file:\n');
+disp(DCM.xY.Dfile);
+
+fprintf('\nOptions:\n');
+fprintf('Analysis: %s\n', DCM.options.analysis);
+fprintf('Model: %s\n', DCM.options.model);
+fprintf('Spatial: %s\n', DCM.options.spatial);
+fprintf('Trials: [%d %d]\n', DCM.options.trials(1), DCM.options.trials(2));
+fprintf('Time window: [%d %d] ms\n', DCM.options.Tdcm(1), DCM.options.Tdcm(2));
+fprintf('Nmodes: %d\n', DCM.options.Nmodes);
+fprintf('Hanning: %d\n', DCM.options.han);
+
+fprintf('\nSources:\n');
+for i = 1:numel(DCM.Sname)
+    fprintf('%d = %s | MNI [%d %d %d]\n', ...
+        i, DCM.Sname{i}, DCM.Lpos(1,i), DCM.Lpos(2,i), DCM.Lpos(3,i));
+end
+
+fprintf('\nMatrix sizes:\n');
+fprintf('A{1}: %d x %d\n', size(DCM.A{1},1), size(DCM.A{1},2));
+fprintf('A{2}: %d x %d\n', size(DCM.A{2},1), size(DCM.A{2},2));
+fprintf('A{3}: %d x %d\n', size(DCM.A{3},1), size(DCM.A{3},2));
+fprintf('B{1}: %d x %d\n', size(DCM.B{1},1), size(DCM.B{1},2));
+fprintf('C: %d x %d\n', size(DCM.C,1), size(DCM.C,2));
+
+if ~exist(DCM.xY.Dfile, 'file')
+    error('DCM input file does not exist.');
+end
+
+if numel(DCM.Sname) ~= 6
+    error('Expected 6 sources.');
+end
+
+if ~isequal(size(DCM.Lpos), [3 6])
+    error('Expected DCM.Lpos to be 3 x 6.');
+end
+
+if ~isequal(size(DCM.C), [6 1])
+    error('Expected C matrix to be 6 x 1.');
+end
+
+if DCM.C(1,1) ~= 1 || DCM.C(2,1) ~= 1
+    error('Auditory input should enter bilateral A1.');
+end
+
+if DCM.C(5,1) ~= 0 || DCM.C(6,1) ~= 0
+    error('This pitch/frequency model should not include IFG expectancy input.');
+end
+
+fprintf('\nPreliminary DCM structure verified.\n');
+fprintf('Ready for visual matrix/network inspection before any inversion.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 7: Visual matrix and network inspection
+% -------------------------------------------------------------------------
+
+visual_dir = fullfile(day2_dir, 'day2_visual_model_checks');
+
+if ~exist(visual_dir, 'dir')
+    mkdir(visual_dir);
+end
+
+% A{1}: forward connections
+figure;
+imagesc(A{1});
+axis square;
+colorbar;
+title('A{1}: Forward connections');
+xticks(1:6);
+yticks(1:6);
+xticklabels(source_names);
+yticklabels(source_names);
+xtickangle(45);
+xlabel('Source of influence');
+ylabel('Target source');
+saveas(gcf, fullfile(visual_dir, 'A1_forward_connections.png'));
+savefig(gcf, fullfile(visual_dir, 'A1_forward_connections.fig'));
+
+% A{2}: backward connections
+figure;
+imagesc(A{2});
+axis square;
+colorbar;
+title('A{2}: Backward connections');
+xticks(1:6);
+yticks(1:6);
+xticklabels(source_names);
+yticklabels(source_names);
+xtickangle(45);
+xlabel('Source of influence');
+ylabel('Target source');
+saveas(gcf, fullfile(visual_dir, 'A2_backward_connections.png'));
+savefig(gcf, fullfile(visual_dir, 'A2_backward_connections.fig'));
+
+% A{3}: lateral connections
+figure;
+imagesc(A{3});
+axis square;
+colorbar;
+title('A{3}: Lateral connections');
+xticks(1:6);
+yticks(1:6);
+xticklabels(source_names);
+yticklabels(source_names);
+xtickangle(45);
+xlabel('Source of influence');
+ylabel('Target source');
+saveas(gcf, fullfile(visual_dir, 'A3_lateral_connections.png'));
+savefig(gcf, fullfile(visual_dir, 'A3_lateral_connections.fig'));
+
+% B{1}: pitch deviant modulation
+figure;
+imagesc(B{1});
+axis square;
+colorbar;
+title('B{1}: Pitch Deviant modulation');
+xticks(1:6);
+yticks(1:6);
+xticklabels(source_names);
+yticklabels(source_names);
+xtickangle(45);
+xlabel('Source of influence');
+ylabel('Target source');
+saveas(gcf, fullfile(visual_dir, 'B1_pitch_deviant_modulation.png'));
+savefig(gcf, fullfile(visual_dir, 'B1_pitch_deviant_modulation.fig'));
+
+% C: auditory input
+figure;
+imagesc(C);
+axis square;
+colorbar;
+title('C: Auditory input');
+xticks(1);
+yticks(1:6);
+xticklabels({'Auditory input'});
+yticklabels(source_names);
+xlabel('Input');
+ylabel('Target source');
+saveas(gcf, fullfile(visual_dir, 'C_auditory_input.png'));
+savefig(gcf, fullfile(visual_dir, 'C_auditory_input.fig'));
+
+% Build edge table
+edge_source = {};
+edge_target = {};
+edge_type   = {};
+
+[target_idx, source_idx] = find(A{1});
+for i = 1:numel(target_idx)
+    edge_source{end+1,1} = source_names{source_idx(i)};
+    edge_target{end+1,1} = source_names{target_idx(i)};
+    edge_type{end+1,1}   = 'Forward';
+end
+
+[target_idx, source_idx] = find(A{2});
+for i = 1:numel(target_idx)
+    edge_source{end+1,1} = source_names{source_idx(i)};
+    edge_target{end+1,1} = source_names{target_idx(i)};
+    edge_type{end+1,1}   = 'Backward';
+end
+
+[target_idx, source_idx] = find(A{3});
+for i = 1:numel(target_idx)
+    edge_source{end+1,1} = source_names{source_idx(i)};
+    edge_target{end+1,1} = source_names{target_idx(i)};
+    edge_type{end+1,1}   = 'Lateral';
+end
+
+edge_table = table();
+edge_table.Source = string(edge_source);
+edge_table.Target = string(edge_target);
+edge_table.Type   = string(edge_type);
+
+disp(edge_table);
+
+writetable(edge_table, fullfile(visual_dir, 'model12_edge_table.csv'));
+
+save(fullfile(visual_dir, 'model12_edge_table.mat'), 'edge_table');
+
+% Network diagram
+combined_A = double((A{1} + A{2} + A{3}) > 0);
+G = digraph(combined_A', source_names);
+
+x_coords = [-1  1  -1  1  -1  1];
+y_coords = [ 1  1   2  2   3  3];
+
+figure;
+plot(G, ...
+    'XData', x_coords, ...
+    'YData', y_coords, ...
+    'NodeLabel', source_names, ...
+    'ArrowSize', 12, ...
+    'LineWidth', 1.5, ...
+    'MarkerSize', 8);
+title('Phillips model 12 network: source-to-target direction');
+axis off;
+saveas(gcf, fullfile(visual_dir, 'model12_network_diagram.png'));
+savefig(gcf, fullfile(visual_dir, 'model12_network_diagram.fig'));
+
+visual_summary = struct();
+visual_summary.visual_dir = visual_dir;
+visual_summary.source_names = source_names;
+visual_summary.source_locations = source_locations;
+visual_summary.A = A;
+visual_summary.B = B;
+visual_summary.C = C;
+visual_summary.edge_table = edge_table;
+visual_summary.note = [
+    "Visual model checks for Phillips model 12 working DCM. " + ...
+    "Matrix convention: A/B rows are targets, columns are sources. " + ...
+    "Graph convention transposes A for source-to-target display."
+];
+
+save(fullfile(visual_dir, 'day2_visual_model_check_summary.mat'), ...
+    'visual_summary');
+
+fprintf('\nVisual model inspection files saved in:\n%s\n', visual_dir);
+fprintf('\nInspect the figures and edge table before any DCM inversion.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 8: Save final verified DCM structure
+% -------------------------------------------------------------------------
+
+load(prelim_dcm_file, 'DCM');
+
+DCM.day2_status = 'Verified model structure only; not inverted';
+DCM.final_model_label = 'Phillips_model12_pitch_deviant_CMC_6source';
+DCM.final_dcm_input_file = dcm_input_file;
+DCM.final_visual_check_dir = visual_dir;
+DCM.final_edge_table = edge_table;
+
+DCM.final_notes = [
+    "Day 2 verified baseline CMC DCM structure. " + ...
+    "Input file is the Day 1 baseline-corrected 20-participant grand mean. " + ...
+    "Conditions are Standard and Pitch Deviant. " + ...
+    "Architecture follows Phillips et al. 2015 frequency-deviant winning model 12. " + ...
+    "Sources are bilateral A1, bilateral STG, and bilateral IFG. " + ...
+    "Auditory input enters bilateral A1 only. " + ...
+    "No IFG expectancy input is included. " + ...
+    "Lateral connectivity is included between IFG sources only. " + ...
+    "The DCM has not been inverted."
+];
+
+verified_dcm_file = fullfile(day2_dir, ...
+    'DCM_20HC_standard_pitch_CMC_6source_model12_VERIFIED_NOT_INVERTED.mat');
+
+save(verified_dcm_file, 'DCM');
+
+fprintf('\nVerified DCM structure saved:\n%s\n', verified_dcm_file);
+fprintf('\nImportant: this DCM has NOT been inverted.\n');
+
+
+%% ------------------------------------------------------------------------
+% Step 9: Final Day 2 verification summary
+% -------------------------------------------------------------------------
+
+load(verified_dcm_file, 'DCM');
+
+fprintf('\n============================================================\n');
+fprintf('DAY 2 FINAL VERIFICATION SUMMARY\n');
+fprintf('============================================================\n');
+
+fprintf('\nVerified DCM file:\n%s\n', verified_dcm_file);
+fprintf('\nInput data file:\n%s\n', DCM.xY.Dfile);
+
+fprintf('\nConditions:\n');
+fprintf('1 = Standard\n');
+fprintf('2 = Pitch Deviant\n');
+
+fprintf('\nModel options:\n');
+fprintf('Analysis: %s\n', DCM.options.analysis);
+fprintf('Model: %s\n', DCM.options.model);
+fprintf('Spatial: %s\n', DCM.options.spatial);
+fprintf('Trials: [%d %d]\n', DCM.options.trials(1), DCM.options.trials(2));
+fprintf('Time window: [%d %d] ms\n', DCM.options.Tdcm(1), DCM.options.Tdcm(2));
+fprintf('Nmodes: %d\n', DCM.options.Nmodes);
+fprintf('Hanning: %d\n', DCM.options.han);
+
+fprintf('\nSources:\n');
+for i = 1:numel(DCM.Sname)
+    fprintf('%d = %s | MNI [%d %d %d]\n', ...
+        i, DCM.Sname{i}, DCM.Lpos(1,i), DCM.Lpos(2,i), DCM.Lpos(3,i));
+end
+
+fprintf('\nConnectivity summary:\n');
+disp(DCM.final_edge_table);
+
+fprintf('\nStatus:\n%s\n', DCM.day2_status);
+
+if DCM.C(5,1) ~= 0 || DCM.C(6,1) ~= 0
+    error('This pitch/frequency model should not include IFG expectancy input.');
+end
+
+fprintf('\nFinal Day 2 DCM structure verified successfully.\n');
+fprintf('No inversion has been run.\n');
