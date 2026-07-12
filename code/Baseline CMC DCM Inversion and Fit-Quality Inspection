@@ -1,0 +1,973 @@
+# Day 3 Lab Book Entry: Baseline CMC DCM Inversion and Fit-Quality Inspection
+
+**Date:** Saturday 11 July 2026  
+**Project:** MSc Thesis Project  
+**Stage:** Source reconstruction + DCM fitting  
+**Main objective:** Fit and inspect the baseline six-source CMC DCM for the grand-average Standard vs Pitch Deviant auditory MEG response.
+
+---
+
+## 1. Aim of the day
+
+The aim of Day 3 was to perform the first actual baseline Dynamic Causal Model inversion for the MSc thesis analysis.
+
+This baseline model used the verified six-source Phillips-style auditory network prepared on Day 2. No receptor-informed priors were used at this stage. The purpose of this model is to provide the baseline model evidence value against which later receptor-informed CMC DCMs will be compared.
+
+The key question for this stage was:
+
+> Can the standard six-source CMC DCM explain the 20-participant grand-average MEG response to Standard and Pitch Deviant tones?
+
+---
+
+## 2. Input data
+
+The model was fitted to the baseline-corrected grand-average file created on Day 1:
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat
+```
+
+The DCM used two conditions:
+
+| Trial | Condition |
+|---:|---|
+| 1 | Standard |
+| 2 | Pitch Deviant |
+
+The modelled time window was:
+
+```matlab
+[-100 300] ms
+```
+
+The data were from the retained 20 healthy-control grand average.
+
+---
+
+## 3. Model structure
+
+The model used the six-source auditory hierarchy based on the Phillips et al. frequency-deviant model architecture:
+
+| Source number | Source name | MNI coordinates |
+|---:|---|---|
+| 1 | left A1 | `[-42 -22 7]` |
+| 2 | right A1 | `[46 -14 8]` |
+| 3 | left STG | `[-61 -32 8]` |
+| 4 | right STG | `[59 -25 8]` |
+| 5 | left IFG | `[-46 20 8]` |
+| 6 | right IFG | `[46 20 8]` |
+
+The network structure was:
+
+```text
+left A1  <-> left STG  <-> left IFG
+right A1 <-> right STG <-> right IFG
+left IFG <-> right IFG
+```
+
+The external auditory input entered bilateral A1:
+
+```text
+left A1
+right A1
+```
+
+No direct driving input was specified for STG or IFG.
+
+---
+
+## 4. DCM options
+
+The baseline model used the following DCM options:
+
+```matlab
+DCM.options.trials   = [1 2];
+DCM.options.Tdcm     = [-100 300];
+DCM.options.analysis = 'ERP';
+DCM.options.model    = 'CMC';
+DCM.options.spatial  = 'IMG';
+DCM.options.Nmodes   = 8;
+DCM.options.h        = 1;
+DCM.options.onset    = 60;
+DCM.options.D        = 1;
+DCM.options.han      = 1;
+```
+
+The condition-specific design was coded as:
+
+```matlab
+DCM.xU.X = [0; 1];
+DCM.xU.name = {'Pitch Deviant'};
+```
+
+This means:
+
+```text
+Standard      = 0
+Pitch Deviant = 1
+```
+
+Therefore:
+
+```text
+Standard connectivity      = A
+Pitch Deviant connectivity = A + B
+```
+
+---
+
+## 5. Baseline inversion setup code
+
+```matlab
+%% ========================================================================
+% Day 3 Step 5 retry: baseline CMC DCM inversion with fiducial selection
+% ========================================================================
+% Retry after the first attempt failed during MEEG/MRI coregistration.
+%
+% Important interactive choices:
+% Head model: template
+% Cortical mesh: normal
+% Nasion: select
+% LPA: select
+% RPA: select
+%
+% Do not choose skip for fiducials.
+% ========================================================================
+
+clear DCM;
+
+baseline_ready_file = fullfile(day3_dir, ...
+    'DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_READY_FOR_INVERSION.mat');
+
+if ~exist(baseline_ready_file, 'file')
+    error('Baseline ready file not found:\n%s', baseline_ready_file);
+end
+
+load(baseline_ready_file, 'DCM');
+
+fprintf('\nLoaded baseline-ready DCM:\n%s\n', baseline_ready_file);
+
+fprintf('\nReminder for SPM prompts:\n');
+fprintf('Head model: template\n');
+fprintf('Cortical mesh: normal\n');
+fprintf('Nasion: select\n');
+fprintf('LPA: select\n');
+fprintf('RPA: select\n');
+fprintf('Do not choose skip for fiducials.\n');
+
+diary_file_retry = fullfile(day3_dir, ...
+    'day3_baseline_inversion_retry_diary.txt');
+
+diary(diary_file_retry);
+
+try
+
+    fprintf('\nStarting baseline CMC DCM inversion retry...\n');
+    fprintf('Started at: %s\n', datestr(now));
+
+    DCM = spm_dcm_erp(DCM);
+
+    DCM.day3_status = 'Baseline CMC DCM inverted successfully after coregistration retry';
+    DCM.day3_inversion_completed = true;
+    DCM.day3_inversion_time = datestr(now);
+    DCM.day3_baseline_model = true;
+    DCM.day3_receptor_priors_used = false;
+    DCM.day3_coregistration_note = ...
+        'Retry used template head model, normal mesh, and selected fiducials rather than skipped fiducials.';
+
+    inverted_dcm_file = fullfile(day3_dir, ...
+        'DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat');
+
+    save(inverted_dcm_file, 'DCM', '-v7.3');
+
+    fprintf('\nBaseline CMC DCM inversion completed successfully.\n');
+    fprintf('Finished at: %s\n', datestr(now));
+    fprintf('\nInverted baseline DCM saved:\n%s\n', inverted_dcm_file);
+
+    if isfield(DCM, 'F')
+        fprintf('\nBaseline model free energy DCM.F:\n');
+        disp(DCM.F);
+    else
+        warning('DCM.F was not found after inversion.');
+    end
+
+catch ME
+
+    fprintf('\nBaseline DCM inversion retry failed.\n');
+    fprintf('Error message:\n%s\n', ME.message);
+
+    baseline_inversion_retry_error = ME;
+
+    save(fullfile(day3_dir, 'day3_baseline_inversion_retry_error.mat'), ...
+        'baseline_inversion_retry_error', 'DCM');
+
+    diary off;
+
+    rethrow(ME);
+
+end
+
+diary off;
+
+fprintf('\nRetry diary saved:\n%s\n', diary_file_retry);
+```
+
+---
+
+## 6. Coregistration and forward model choices
+
+The successful inversion used the following interactive SPM choices:
+
+| SPM prompt | Selection |
+|---|---|
+| Head model | Template |
+| Cortical mesh | Normal |
+| Nasion | `nas` |
+| LPA | `lpa` |
+| RPA | `rpa` |
+| Headshape points | Yes |
+| MEG head model | Single Shell |
+
+The first inversion attempt failed because fiducials were skipped. The retry succeeded after selecting the template fiducials.
+
+---
+
+## 7. Main inversion result
+
+The baseline CMC DCM inversion completed successfully.
+
+The inverted DCM was saved as:
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion/DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat
+```
+
+The baseline free energy was:
+
+```matlab
+DCM.F = 64.2175
+```
+
+This is the baseline model evidence value for later receptor-informed DCM comparisons.
+
+---
+
+## 8. Verification code
+
+```matlab
+%% ========================================================================
+% Day 3 Step 6: Verify baseline inverted DCM output
+% ========================================================================
+
+inverted_dcm_file = fullfile(day3_dir, ...
+    'DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat');
+
+if ~exist(inverted_dcm_file, 'file')
+    error('Inverted DCM file not found:\n%s', inverted_dcm_file);
+end
+
+load(inverted_dcm_file, 'DCM');
+
+fprintf('\n============================================================\n');
+fprintf('DAY 3 BASELINE DCM INVERSION VERIFICATION\n');
+fprintf('============================================================\n');
+
+fprintf('\nInverted DCM file:\n%s\n', inverted_dcm_file);
+
+fprintf('\nInput data file:\n%s\n', DCM.xY.Dfile);
+
+fprintf('\nModel status:\n');
+if isfield(DCM, 'day3_status')
+    fprintf('%s\n', DCM.day3_status);
+end
+
+fprintf('\nModel options:\n');
+fprintf('Analysis: %s\n', DCM.options.analysis);
+fprintf('Model: %s\n', DCM.options.model);
+fprintf('Spatial: %s\n', DCM.options.spatial);
+fprintf('Trials: [%d %d]\n', DCM.options.trials(1), DCM.options.trials(2));
+fprintf('Time window: [%d %d] ms\n', DCM.options.Tdcm(1), DCM.options.Tdcm(2));
+fprintf('Nmodes: %d\n', DCM.options.Nmodes);
+fprintf('Hanning: %d\n', DCM.options.han);
+
+fprintf('\nSources:\n');
+for i = 1:numel(DCM.Sname)
+    fprintf('%d = %s | MNI [%d %d %d]\n', ...
+        i, DCM.Sname{i}, DCM.Lpos(1,i), DCM.Lpos(2,i), DCM.Lpos(3,i));
+end
+
+fprintf('\nBaseline model free energy:\n');
+fprintf('DCM.F = %.4f\n', DCM.F);
+
+fprintf('\nChecking expected fitted fields:\n');
+
+required_fields = {'Ep', 'Cp', 'F', 'M', 'xY'};
+for i = 1:numel(required_fields)
+    this_field = required_fields{i};
+
+    if isfield(DCM, this_field)
+        fprintf('Found DCM.%s\n', this_field);
+    else
+        warning('Missing DCM.%s', this_field);
+    end
+end
+
+fprintf('\nPosterior parameter fields in DCM.Ep:\n');
+ep_fields = fieldnames(DCM.Ep);
+disp(ep_fields);
+
+baseline_summary = struct();
+baseline_summary.inverted_dcm_file = inverted_dcm_file;
+baseline_summary.input_data_file = DCM.xY.Dfile;
+baseline_summary.free_energy = DCM.F;
+baseline_summary.analysis = DCM.options.analysis;
+baseline_summary.model = DCM.options.model;
+baseline_summary.spatial = DCM.options.spatial;
+baseline_summary.trials = DCM.options.trials;
+baseline_summary.time_window_ms = DCM.options.Tdcm;
+baseline_summary.n_sources = numel(DCM.Sname);
+baseline_summary.source_names = DCM.Sname;
+baseline_summary.source_locations = DCM.Lpos;
+baseline_summary.posterior_fields = ep_fields;
+baseline_summary.status = DCM.day3_status;
+
+save(fullfile(day3_dir, 'day3_baseline_inversion_summary.mat'), ...
+    'baseline_summary');
+
+summary_table = table();
+summary_table.Measure = [
+    "Baseline free energy";
+    "Number of sources";
+    "Condition 1";
+    "Condition 2";
+    "Time window start ms";
+    "Time window end ms"
+];
+
+summary_table.Value = [
+    string(sprintf('%.4f', DCM.F));
+    string(numel(DCM.Sname));
+    "Standard";
+    "Pitch Deviant";
+    string(DCM.options.Tdcm(1));
+    string(DCM.options.Tdcm(2))
+];
+
+disp(summary_table);
+
+writetable(summary_table, ...
+    fullfile(day3_dir, 'day3_baseline_inversion_summary.csv'));
+
+fprintf('\nBaseline inversion summary saved in:\n%s\n', day3_dir);
+```
+
+---
+
+## 9. Verification output summary
+
+The verification confirmed that the fitted DCM contained the expected fields:
+
+```text
+DCM.Ep
+DCM.Cp
+DCM.F
+DCM.M
+DCM.xY
+```
+
+The posterior parameter fields in `DCM.Ep` included:
+
+```text
+M
+A
+B
+N
+C
+T
+G
+D
+S
+R
+```
+
+The model was therefore successfully fitted and suitable for fit-quality inspection.
+
+---
+
+## 10. Fit-quality inspection
+
+The following SPM plots were inspected:
+
+| Plot | Verdict |
+|---|---|
+| ERPs (mode) | Acceptable |
+| ERPs (sources) | Acceptable |
+| Coupling (A) | Acceptable |
+| Coupling (B) | Acceptable |
+| Coupling (C) | Good |
+| Trial-specific effects | Acceptable |
+| Input | Acceptable |
+| Response | Acceptable |
+| Response image | Acceptable |
+| Scalp maps | Good |
+| Data | Acceptable |
+
+---
+
+## 11. ERPs mode interpretation
+
+The ERPs mode plot showed observed vs predicted responses across the eight DCM spatial modes.
+
+The model captured the main Standard and Pitch Deviant response profiles. The fit was strongest in modes 1, 3, 5 and 6. Modes 2 and 4 were less exact but still plausible.
+
+The predicted and observed waveforms were broadly aligned in timing, polarity and shape.
+
+Verdict:
+
+```text
+ERPs (mode): acceptable
+```
+
+---
+
+## 12. ERPs sources interpretation
+
+The ERPs sources plot showed structured source-level responses across:
+
+```text
+left A1
+right A1
+left STG
+right STG
+left IFG
+right IFG
+```
+
+Pitch Deviant responses were generally larger than Standard responses, particularly in auditory and inferior frontal sources.
+
+There was no evidence of flat, unstable or explosive source dynamics.
+
+Verdict:
+
+```text
+ERPs (sources): acceptable
+```
+
+---
+
+## 13. Coupling A interpretation
+
+The Coupling A plot showed the fitted baseline extrinsic connectivity.
+
+The pattern followed the expected auditory hierarchy:
+
+```text
+A1 <-> STG <-> IFG
+```
+
+The estimates were structured rather than diffuse across all possible connections.
+
+Verdict:
+
+```text
+Coupling (A): acceptable
+```
+
+---
+
+## 14. Coupling B interpretation
+
+The Coupling B plot showed Pitch Deviant modulation of connectivity relative to Standard.
+
+The model estimated interpretable condition-specific effects, including:
+
+```text
+A1 intrinsic modulation
+STG/IFG fronto-temporal modulation
+left IFG -> left STG modulation
+left STG -> left IFG modulation
+right STG -> right IFG modulation
+```
+
+This suggests that Pitch Deviant responses were associated with changes in auditory cortical dynamics and fronto-temporal coupling.
+
+Verdict:
+
+```text
+Coupling (B): acceptable
+```
+
+---
+
+## 15. Coupling C interpretation
+
+The Coupling C plot confirmed auditory driving input to bilateral A1 only.
+
+The fitted input strengths were:
+
+| Source | Input strength | Posterior probability |
+|---|---:|---:|
+| left A1 | 0.74 | 0.99 |
+| right A1 | 0.64 | 1.00 |
+
+No direct driving input was estimated for STG or IFG sources.
+
+Verdict:
+
+```text
+Coupling (C): good
+```
+
+---
+
+## 16. Trial-specific effects interpretation
+
+The trial-specific effects plot showed the estimated connection strengths separately for:
+
+```text
+trial 1 = Standard
+trial 2 = Pitch Deviant
+```
+
+The main pattern was:
+
+```text
+A1 intrinsic/self effects were lower for Pitch Deviant.
+STG -> A1 backward effects were lower for Pitch Deviant.
+A1 -> STG feedforward effects were relatively stable.
+STG/IFG fronto-temporal effects were stronger for Pitch Deviant.
+```
+
+Verdict:
+
+```text
+Trial-specific effects: acceptable
+```
+
+---
+
+## 17. Input plot interpretation
+
+The input plot showed a single transient auditory input function peaking shortly after stimulus onset and returning toward zero.
+
+This is appropriate because both Standard and Pitch Deviant trials receive an auditory stimulus. The condition difference is represented by the B matrix rather than by a separate input function.
+
+Verdict:
+
+```text
+Input plot: acceptable
+```
+
+---
+
+## 18. Response and response image interpretation
+
+The Response and Response image plots showed good agreement between observed adjusted responses and model-predicted responses.
+
+The model captured:
+
+```text
+main timing of the evoked responses
+amplitude range
+larger Pitch Deviant response
+channel-time structure
+return toward baseline
+```
+
+Verdict:
+
+```text
+Response plots: acceptable
+```
+
+---
+
+## 19. Scalp maps interpretation
+
+The scalp maps showed good agreement between observed and predicted topographies for both Standard and Pitch Deviant conditions across representative time points.
+
+The model reproduced the main spatial polarity patterns and condition-specific differences.
+
+Verdict:
+
+```text
+Scalp maps: good
+```
+
+---
+
+## 20. Data plot interpretation
+
+The Data plot showed the observed responses used for DCM fitting.
+
+The data contained clear evoked responses in both conditions, with the Pitch Deviant response visibly stronger and more complex than the Standard response.
+
+There was no evidence of a single rogue channel dominating the plot.
+
+Verdict:
+
+```text
+Data plot: acceptable
+```
+
+---
+
+## 21. Overall Day 3 conclusion
+
+The baseline six-source CMC DCM was successfully inverted and visually inspected.
+
+The model produced:
+
+```matlab
+DCM.F = 64.2175
+```
+
+The fitted model reproduced the main temporal, spatial and condition-specific structure of the grand-average MEG responses. No evidence of gross model failure, unstable dynamics, implausible input structure or uninterpretable connectivity estimates was observed.
+
+The baseline model was therefore retained as the reference model for later receptor-informed DCM comparisons.
+
+---
+
+## 22. Posterior export code
+
+```matlab
+%% ========================================================================
+% Day 3: Export posterior parameter summaries from fitted baseline DCM
+% ========================================================================
+
+day3_dir = ...
+    '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion';
+
+inverted_dcm_file = fullfile(day3_dir, ...
+    'DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat');
+
+fit_qc_dir = fullfile(day3_dir, 'baseline_fit_qc');
+
+if ~exist(fit_qc_dir, 'dir')
+    mkdir(fit_qc_dir);
+end
+
+load(inverted_dcm_file, 'DCM');
+
+source_names = matlab.lang.makeValidName(DCM.Sname(:));
+
+fprintf('\nExporting posterior parameters from:\n%s\n', inverted_dcm_file);
+fprintf('Output folder:\n%s\n', fit_qc_dir);
+
+if isfield(DCM.Ep, 'A')
+
+    for a = 1:numel(DCM.Ep.A)
+
+        this_A = DCM.Ep.A{a};
+
+        A_table = array2table(this_A, ...
+            'VariableNames', source_names, ...
+            'RowNames', source_names);
+
+        out_file = fullfile(fit_qc_dir, ...
+            sprintf('posterior_A_matrix_%d.csv', a));
+
+        writetable(A_table, out_file, 'WriteRowNames', true);
+
+        fprintf('Saved: %s\n', out_file);
+    end
+
+else
+    warning('DCM.Ep.A not found.');
+end
+
+if isfield(DCM.Ep, 'B')
+
+    for b = 1:numel(DCM.Ep.B)
+
+        this_B = DCM.Ep.B{b};
+
+        B_table = array2table(this_B, ...
+            'VariableNames', source_names, ...
+            'RowNames', source_names);
+
+        out_file = fullfile(fit_qc_dir, ...
+            sprintf('posterior_B_matrix_%d_pitch_deviant_modulation.csv', b));
+
+        writetable(B_table, out_file, 'WriteRowNames', true);
+
+        fprintf('Saved: %s\n', out_file);
+    end
+
+else
+    warning('DCM.Ep.B not found.');
+end
+
+if isfield(DCM.Ep, 'C')
+
+    C_table = array2table(DCM.Ep.C, ...
+        'VariableNames', {'Auditory_Input'}, ...
+        'RowNames', source_names);
+
+    out_file_C = fullfile(fit_qc_dir, ...
+        'posterior_C_auditory_input.csv');
+
+    writetable(C_table, out_file_C, 'WriteRowNames', true);
+
+    fprintf('Saved: %s\n', out_file_C);
+
+else
+    warning('DCM.Ep.C not found.');
+end
+
+if isfield(DCM.Ep, 'G')
+
+    G_table = array2table(DCM.Ep.G);
+
+    out_file_G = fullfile(fit_qc_dir, ...
+        'posterior_G_intrinsic_microcircuit.csv');
+
+    writetable(G_table, out_file_G);
+
+    fprintf('Saved: %s\n', out_file_G);
+
+else
+    warning('DCM.Ep.G not found.');
+end
+
+if isfield(DCM.Ep, 'T')
+
+    T_table = array2table(DCM.Ep.T);
+
+    out_file_T = fullfile(fit_qc_dir, ...
+        'posterior_T_temporal_parameters.csv');
+
+    writetable(T_table, out_file_T);
+
+    fprintf('Saved: %s\n', out_file_T);
+
+else
+    warning('DCM.Ep.T not found.');
+end
+
+posterior_summary = struct();
+posterior_summary.F = DCM.F;
+posterior_summary.Ep_fields = fieldnames(DCM.Ep);
+posterior_summary.source_names = DCM.Sname;
+posterior_summary.source_locations = DCM.Lpos;
+posterior_summary.A = DCM.Ep.A;
+posterior_summary.B = DCM.Ep.B;
+posterior_summary.C = DCM.Ep.C;
+
+if isfield(DCM.Ep, 'G')
+    posterior_summary.G = DCM.Ep.G;
+end
+
+if isfield(DCM.Ep, 'T')
+    posterior_summary.T = DCM.Ep.T;
+end
+
+save(fullfile(fit_qc_dir, 'baseline_DCM_posterior_summary.mat'), ...
+    'posterior_summary');
+
+fprintf('\nPosterior parameter export complete.\n');
+```
+
+---
+
+## 23. Day 3 summary table code
+
+```matlab
+%% ========================================================================
+% Day 3: Create summary table for baseline DCM
+% ========================================================================
+
+load(inverted_dcm_file, 'DCM');
+
+summary_table = table();
+
+summary_table.Measure = [
+    "Model stage";
+    "Model type";
+    "Analysis";
+    "Spatial model";
+    "Number of sources";
+    "Number of modes";
+    "Condition 1";
+    "Condition 2";
+    "Time window";
+    "Baseline free energy";
+    "Receptor priors used";
+    "Input sources";
+    "Forward model";
+    "Fit quality verdict"
+];
+
+summary_table.Value = [
+    "Baseline fitted DCM";
+    string(DCM.options.model);
+    string(DCM.options.analysis);
+    string(DCM.options.spatial);
+    string(numel(DCM.Sname));
+    string(DCM.options.Nmodes);
+    "Standard";
+    "Pitch Deviant";
+    string(sprintf('%d to %d ms', DCM.options.Tdcm(1), DCM.options.Tdcm(2)));
+    string(sprintf('%.4f', DCM.F));
+    "No";
+    "left A1 and right A1";
+    "Template head model, normal mesh, fiducials selected, MEG Single Shell";
+    "Acceptable"
+];
+
+summary_csv = fullfile(fit_qc_dir, ...
+    'day3_baseline_DCM_summary_table.csv');
+
+writetable(summary_table, summary_csv);
+
+disp(summary_table);
+
+fprintf('\nSaved Day 3 summary table:\n%s\n', summary_csv);
+```
+
+---
+
+## 24. Final Day 3 file check code
+
+```matlab
+%% ========================================================================
+% Day 3: Final output file check
+% ========================================================================
+
+expected_files = {
+    fullfile(day3_dir, 'DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat')
+    fullfile(day3_dir, 'day3_baseline_DCM_fit_quality_documentation.md')
+    fullfile(fit_qc_dir, 'day3_baseline_DCM_summary_table.csv')
+    fullfile(fit_qc_dir, 'baseline_DCM_posterior_summary.mat')
+    fullfile(fit_qc_dir, 'posterior_C_auditory_input.csv')
+    fullfile(fit_qc_dir, 'posterior_G_intrinsic_microcircuit.csv')
+    fullfile(fit_qc_dir, 'posterior_T_temporal_parameters.csv')
+    fullfile(fit_qc_dir, 'baseline_DCM_fit_ERPs_mode.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_fit_ERPs_sources.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_coupling_A.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_coupling_B_pitch_deviant.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_coupling_C_auditory_input.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_trial_specific_effects.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_input_function.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_response_observed_vs_predicted.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_response_image_observed_vs_predicted.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_scalp_maps.png')
+    fullfile(fit_qc_dir, 'baseline_DCM_data_observed_responses.png')
+};
+
+fprintf('\nChecking expected Day 3 outputs:\n');
+
+for i = 1:numel(expected_files)
+    if exist(expected_files{i}, 'file')
+        fprintf('FOUND:   %s\n', expected_files{i});
+    else
+        fprintf('MISSING: %s\n', expected_files{i});
+    end
+end
+
+fprintf('\nDay 3 final file check complete.\n');
+```
+
+---
+
+## 25. Files generated or retained on Day 3
+
+### Main fitted model
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion/DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat
+```
+
+### Main diary file
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion/day3_baseline_inversion_retry_diary.txt
+```
+
+### Fit/QC folder
+
+```matlab
+/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion/baseline_fit_qc
+```
+
+Expected fit/QC outputs include:
+
+```text
+baseline_DCM_fit_ERPs_mode.png
+baseline_DCM_fit_ERPs_sources.png
+baseline_DCM_coupling_A.png
+baseline_DCM_coupling_B_pitch_deviant.png
+baseline_DCM_coupling_C_auditory_input.png
+baseline_DCM_trial_specific_effects.png
+baseline_DCM_input_function.png
+baseline_DCM_response_observed_vs_predicted.png
+baseline_DCM_response_image_observed_vs_predicted.png
+baseline_DCM_scalp_maps.png
+baseline_DCM_data_observed_responses.png
+posterior_A_matrix_1.csv
+posterior_A_matrix_2.csv
+posterior_A_matrix_3.csv
+posterior_A_matrix_4.csv
+posterior_B_matrix_1_pitch_deviant_modulation.csv
+posterior_C_auditory_input.csv
+posterior_G_intrinsic_microcircuit.csv
+posterior_T_temporal_parameters.csv
+baseline_DCM_posterior_summary.mat
+day3_baseline_DCM_summary_table.csv
+```
+
+---
+
+## 26. GitHub upload code
+
+```bash
+# Update this path if your repository is stored somewhere else
+REPO_DIR="$HOME/Documents/GitHub/MSc_Thesis_Project"
+
+# Destination inside the repository
+DEST_DIR="$REPO_DIR/lab_book/day3_baseline_cmc_dcm"
+
+mkdir -p "$DEST_DIR"
+
+# Copy the Markdown file into the repository
+# Replace SOURCE_FILE with the path to this Markdown file on your computer
+SOURCE_FILE="$HOME/Downloads/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.md"
+
+cp "$SOURCE_FILE" "$DEST_DIR/"
+
+cd "$REPO_DIR"
+
+git status
+
+git add "$DEST_DIR/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.md"
+
+git commit -m "Add Day 3 baseline CMC DCM lab book entry"
+
+git push origin main
+```
+
+If the repository uses `master` instead of `main`, use:
+
+```bash
+git push origin master
+```
+
+---
+
+## 27. Next project stage
+
+The next analysis stage is receptor-informed CMC DCM fitting.
+
+The Day 3 baseline model must be preserved because it provides the reference model evidence:
+
+```matlab
+F_baseline = 64.2175
+```
+
+Future receptor-informed models will be compared using:
+
+```matlab
+Delta_F = F_receptor_informed - F_baseline
+```
+
+A positive value would indicate that receptor-informed priors improve model evidence relative to the standard baseline CMC model.
