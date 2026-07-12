@@ -1,0 +1,260 @@
+# MSc Thesis Lab Book - Day 3
+
+**Date:** Saturday 11 July 2026  
+**Project:** Neurotransmitter receptor-informed Dynamic Causal Modelling of auditory MEG responses  
+**Analysis stage:** Source reconstruction and DCM fitting - baseline CMC DCM  
+**Status:** Completed  
+
+---
+
+## 1. Objective
+
+The objective for Day 3 was to complete the first full inversion of the baseline six-source CMC DCM using the 20-participant grand-average MEG response for the Standard and Pitch Deviant conditions.
+
+This baseline model used standard SPM CMC priors only. No receptor-informed priors were added at this stage. The purpose of this model is to provide the reference model evidence value against which later receptor-informed DCMs will be compared.
+
+---
+
+## 2. Input files and directories
+
+| Item | Path / value |
+|---|---|
+| Day 3 working directory | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day3_BaselineInversion` |
+| Baseline-ready DCM | `DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_READY_FOR_INVERSION.mat` |
+| Inverted baseline DCM | `DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat` |
+| Grand-average input data | `/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day1_GrandMean/grandmean_20HC_standard_pitch_manual_bc.mat` |
+| Fit/QC output folder | `baseline_fit_qc` |
+| Retry diary | `day3_baseline_inversion_retry_diary.txt` |
+
+---
+
+## 3. Model specification
+
+The Day 3 DCM used the verified Day 2 model structure.
+
+| Setting | Value |
+|---|---|
+| Analysis | ERP |
+| Neural mass model | CMC |
+| Spatial model | IMG |
+| Conditions | Standard and Pitch Deviant |
+| Condition coding | Standard = 0, Pitch Deviant = 1 |
+| Time window | -100 to 300 ms |
+| Spatial modes | 8 |
+| Hanning window | On |
+| Receptor-informed priors | No |
+
+### Sources
+
+| Index | Source | MNI coordinate |
+|---:|---|---|
+| 1 | left A1 | [-42 -22 7] |
+| 2 | right A1 | [46 -14 8] |
+| 3 | left STG | [-61 -32 8] |
+| 4 | right STG | [59 -25 8] |
+| 5 | left IFG | [-46 20 8] |
+| 6 | right IFG | [46 20 8] |
+
+### Connectivity structure
+
+- **A matrix:** baseline extrinsic connectivity across the auditory hierarchy.
+- **B matrix:** Pitch Deviant modulation relative to Standard.
+- **C matrix:** auditory driving input to bilateral A1.
+
+Conceptually:
+
+```text
+left A1  <-> left STG  <-> left IFG
+right A1 <-> right STG <-> right IFG
+left IFG <-> right IFG
+```
+
+The condition-specific connectivity is:
+
+```text
+Standard connectivity      = A
+Pitch Deviant connectivity = A + B
+```
+
+---
+
+## 4. Coregistration and forward model choices
+
+The first inversion attempt failed during M/EEG-MRI coregistration because fiducials had been skipped. The successful retry used selected fiducials.
+
+| SPM prompt | Choice used |
+|---|---|
+| Head model | Template |
+| Cortical mesh | Normal |
+| Nasion | Select `nas` |
+| LPA | Select `lpa` |
+| RPA | Select `rpa` |
+| Headshape points | Yes |
+| MEG head model | Single Shell |
+
+This resolved the previous coregistration/fiducial error and allowed SPM to build the forward model and lead field.
+
+---
+
+## 5. Inversion outcome
+
+The baseline CMC DCM inversion completed successfully.
+
+| Measure | Value |
+|---|---|
+| Inversion start | 11-Jul-2026 15:24:04 |
+| Inversion finish | 11-Jul-2026 15:32:58 |
+| Output DCM file | `DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat` |
+| Baseline free energy | `DCM.F = 64.2175` |
+
+The fitted DCM contained the expected fields:
+
+```text
+DCM.Ep
+DCM.Cp
+DCM.F
+DCM.M
+DCM.xY
+```
+
+Posterior parameter fields included:
+
+```text
+M, A, B, N, C, T, G, D, S, R
+```
+
+---
+
+## 6. Fit-quality inspection
+
+Visual inspection was completed across the main SPM DCM result panels.
+
+| Plot | Interpretation | Verdict |
+|---|---|---|
+| ERPs (mode) | Model reproduced the main Standard and Pitch Deviant response profiles across the 8 spatial modes. Modes 1, 3, 5 and 6 showed especially good agreement; modes 2 and 4 were less exact but still plausible. | Acceptable |
+| ERPs (sources) | Source responses were structured across bilateral A1, STG and IFG. Pitch Deviant responses were generally larger than Standard responses, especially in auditory and inferior frontal sources. | Acceptable |
+| Coupling (A) | Baseline extrinsic connectivity followed the intended A1-STG-IFG hierarchy and did not show diffuse or unstable estimates. | Acceptable |
+| Coupling (B) | Pitch Deviant modulation was interpretable, including A1 intrinsic modulation and STG/IFG fronto-temporal modulation. | Acceptable |
+| Coupling (C) | Auditory input was estimated in bilateral A1 only: left A1 = 0.74, right A1 = 0.64, with posterior probabilities of 0.99 and 1.00. | Good |
+| Trial-specific effects | Pitch Deviant showed reduced A1 intrinsic/self effects and increased STG/IFG fronto-temporal effects, especially in the left hemisphere. | Acceptable |
+| Input | Single transient auditory input function peaked early after stimulus onset and returned toward zero. | Acceptable |
+| Response | Observed adjusted and predicted responses matched well for both conditions. | Acceptable |
+| Response (image) | Predicted channel-time images resembled observed images for both conditions. | Acceptable |
+| Scalp maps | Predicted topographies closely matched observed topographies at representative time points for both conditions. | Good |
+| Data | The observed data showed clear structured evoked responses, with stronger Pitch Deviant response than Standard. | Acceptable |
+
+---
+
+## 7. Key interpretation
+
+The Day 3 baseline CMC DCM was successfully inverted and passed visual fit-quality inspection. The fitted model reproduced the main temporal and spatial structure of the grand-average MEG responses for both Standard and Pitch Deviant conditions.
+
+The model also produced interpretable parameter estimates:
+
+- baseline A coupling followed the expected auditory hierarchy;
+- B coupling showed condition-specific Pitch Deviant modulation;
+- C coupling confirmed auditory input to bilateral A1 only;
+- response and scalp-map plots showed no evidence of gross model failure.
+
+The baseline model was therefore retained as the reference model for subsequent receptor-informed DCM comparisons.
+
+The baseline model evidence value to preserve is:
+
+```text
+F_baseline = 64.2175
+```
+
+Future receptor-informed models will be compared using:
+
+```text
+Delta F = F_receptor_informed - F_baseline
+```
+
+---
+
+## 8. Files generated or retained
+
+### Core model files
+
+```text
+DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_READY_FOR_INVERSION.mat
+DCM_20HC_standard_pitch_CMC_6source_model12_BASELINE_INVERTED.mat
+day3_baseline_inversion_retry_diary.txt
+day3_baseline_inversion_summary.mat
+day3_baseline_inversion_summary.csv
+```
+
+### Fit/QC outputs
+
+```text
+baseline_DCM_fit_ERPs_mode.png
+baseline_DCM_fit_ERPs_sources.png
+baseline_DCM_coupling_A.png
+baseline_DCM_coupling_B_pitch_deviant.png
+baseline_DCM_coupling_C_auditory_input.png
+baseline_DCM_trial_specific_effects.png
+baseline_DCM_input_function.png
+baseline_DCM_response_observed_vs_predicted.png
+baseline_DCM_response_image_observed_vs_predicted.png
+baseline_DCM_scalp_maps.png
+baseline_DCM_data_observed_responses.png
+```
+
+### Posterior summary outputs
+
+```text
+baseline_DCM_posterior_summary.mat
+posterior_A_matrix_1.csv
+posterior_A_matrix_2.csv
+posterior_A_matrix_3.csv
+posterior_B_matrix_1_pitch_deviant_modulation.csv
+posterior_C_auditory_input.csv
+posterior_G_intrinsic_microcircuit.csv
+posterior_T_temporal_parameters.csv
+```
+
+---
+
+## 9. Decision
+
+Proceed to receptor-informed CMC DCM fitting only after preserving the Day 3 baseline model and documentation.
+
+The Day 3 baseline model should be treated as the reference model for all subsequent model-evidence comparisons.
+
+---
+
+## 10. GitHub upload commands
+
+Use the following commands from Terminal after placing this Markdown and Word lab-book entry in your local Downloads folder.
+
+```bash
+# Update this path to your actual GitHub repository
+REPO_DIR="$HOME/Documents/GitHub/MSc_Thesis_Project"
+
+# Source files downloaded from ChatGPT
+SOURCE_DIR="$HOME/Downloads"
+
+# Destination inside the repository
+DEST_DIR="$REPO_DIR/lab_book/day3_baseline_cmc_dcm"
+
+mkdir -p "$DEST_DIR"
+
+cp "$SOURCE_DIR/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.md" "$DEST_DIR/"
+cp "$SOURCE_DIR/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.docx" "$DEST_DIR/"
+
+cd "$REPO_DIR"
+
+git status
+
+git add "$DEST_DIR/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.md"
+git add "$DEST_DIR/Day3_Baseline_CMC_DCM_LabBook_2026-07-11.docx"
+
+git commit -m "Add Day 3 baseline CMC DCM lab book entry"
+git push origin main
+```
+
+If your default branch is `master` rather than `main`, use:
+
+```bash
+git push origin master
+```
