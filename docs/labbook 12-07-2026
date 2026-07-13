@@ -1,0 +1,198 @@
+# Sunday 12th July 2026
+
+## Objectives
+
+- Reproduce the receptor-informed DCM methodology.
+- Prepare receptor-informed priors from the published SEEG/PCA receptor dataset.
+- Implement the paper-aligned receptor-informed CMC DCM pipeline.
+- Validate the modified SPM helper functions.
+- Generate a fair baseline comparator using identical optimisation.
+- Begin the receptor-informed sigma-grid inversions.
+
+---
+
+# Work completed
+
+## 1. Located receptor-prior source files
+
+Located:
+
+- `_DCM_ALL_44reg_PCA.mat`
+- `D_seeg_table_PCA_win4PC_1stLev.xls`
+
+---
+
+## 2. Inspected receptor-prior dataset
+
+Confirmed:
+
+- 1769 DCMs
+- Posterior parameters
+- Prior structures
+- Intrinsic receptor parameter field (`Ep.G`)
+- Free energies
+- Complete DCM objects
+
+---
+
+## 3. Converted SEEG receptor table
+
+The original Excel file could not be read by MATLAB because of Unicode formatting.
+
+Actions:
+
+- Opened in Microsoft Excel.
+- Re-exported as modern Excel format.
+- Converted to CSV.
+- Generated MATLAB-readable table.
+
+Recovered:
+
+- MNI coordinates
+- PCA receptor values
+- Original receptor-prior columns
+
+---
+
+## 4. Confirmed sigma units
+
+Established that the published sigma values are expressed in **centimetres**, not millimetres.
+
+| Sigma (cm) | Sigma (mm) |
+|------------|-----------:|
+|0.5|5|
+|1|10|
+|2|20|
+|3|30|
+|4|40|
+|5|50|
+|6|60|
+|7|70|
+|8|80|
+|9|90|
+|10|100|
+
+---
+
+## 5. Confirmed optimisation strategy
+
+Following discussion with Dr Ulrich:
+
+Each receptor-informed model uses:
+
+1. Standard EM start
+2. Assigned receptor-informed start
+3. Eighteen bounded random starts
+
+Total:
+
+**20 EM starts per sigma**
+
+---
+
+## 6. Built baseline optimisation framework
+
+Constructed a matching baseline optimisation pipeline using the same optimisation strategy as the receptor-informed models.
+
+---
+
+## 7. Validated modified helper functions
+
+Performed a smoke-test inversion.
+
+Result:
+
+```
+Day 3 baseline:
+F = 64.2175
+
+Smoke test:
+F = 64.2175
+
+ΔF = 0
+```
+
+The modified helper functions reproduced the original baseline exactly.
+
+---
+
+## 8. Completed baseline 20-EM-start optimisation
+
+Best baseline:
+
+```
+F = 64.2175
+```
+
+The standard zero EM start remained the best solution.
+
+This provides the correct baseline comparator for receptor-informed models.
+
+---
+
+## 9. Began receptor-informed sigma-grid analysis
+
+Design:
+
+- 11 sigma values
+- 20 EM starts per sigma
+
+Total planned inversions:
+
+```
+220
+```
+
+The computational pipeline executed successfully.
+
+---
+
+# Issue encountered
+
+Although all models invert successfully, receptor-informed models currently produce substantially lower free energies than the validated baseline.
+
+Baseline:
+
+```
+F = 64.2175
+```
+
+Observed receptor-informed models:
+
+```
+F ≈ -150 to -600
+```
+
+The issue appears methodological rather than computational.
+
+---
+
+# Current interpretation
+
+The remaining uncertainty concerns how receptor priors are transferred from the historical receptor-informed framework into the current SPM26 CMC model.
+
+Items requiring verification:
+
+- scaling of receptor priors
+- mapping from historical 10 intrinsic parameters to the current 4 intrinsic parameters
+- compatibility of historical posterior values with current prior means
+- relative strength of receptor priors compared with baseline prior variance
+
+---
+
+# Next session
+
+- Verify historical receptor parameter definitions.
+- Validate the old-to-new intrinsic parameter mapping.
+- Confirm whether receptor priors require scaling.
+- Run targeted validation inversions.
+- Resume the full receptor-informed sigma-grid analysis once the prior specification has been verified.
+
+---
+
+# Outcome
+
+- ✅ Receptor-informed computational pipeline established.
+- ✅ Baseline optimisation framework validated.
+- ✅ Fair baseline comparator generated.
+- ⚠ Receptor-prior specification requires further validation before interpreting receptor-informed model evidence.
