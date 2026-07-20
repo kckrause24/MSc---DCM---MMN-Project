@@ -1,0 +1,194 @@
+%% Invert the five-source receptor-informed DCM
+% Uses Ulrich's modified 10-G inversion pipeline.
+% Single deterministic inversion; no random EM starts.
+
+clear;
+clc;
+
+%% ------------------------------------------------------------------------
+% 1. Paths
+% -------------------------------------------------------------------------
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+dcm_folder = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich'];
+
+input_file = fullfile( ...
+    dcm_folder, ...
+    ['DCM_20HC_standard_pitch_CMC_5source_' ...
+     'RECEPTOR_SIGMA1CM_UNINVERTED.mat']);
+
+output_file = fullfile( ...
+    dcm_folder, ...
+    ['DCM_20HC_standard_pitch_CMC_5source_' ...
+     'RECEPTOR_SIGMA1CM_INVERTED.mat']);
+
+%% ------------------------------------------------------------------------
+% 2. Activate Ulrich's custom functions
+% -------------------------------------------------------------------------
+
+addpath(custom_dir, '-begin');
+
+required_functions = {
+    'mmn_spm_dcm_erp_MP_eP'
+    'mmn_spm_dcm_neural_priors'
+    'mmn_spm_dcm_x_neural'
+};
+
+for i = 1:numel(required_functions)
+
+    active_path = which(required_functions{i});
+
+    assert(~isempty(active_path), ...
+        'MATLAB cannot find %s.', required_functions{i});
+
+    assert(contains(active_path, ...
+        'Ulrich_10G_working_functions'), ...
+        ['MATLAB is using the wrong version of %s.\n' ...
+         'Active path:\n%s'], ...
+        required_functions{i}, active_path);
+
+    fprintf('%s:\n%s\n\n', ...
+        required_functions{i}, active_path);
+end
+
+%% ------------------------------------------------------------------------
+% 3. Check and load the prepared DCM
+% -------------------------------------------------------------------------
+
+assert(isfile(input_file), ...
+    'Cannot find the prepared receptor-informed DCM:\n%s', ...
+    input_file);
+
+S = load(input_file, 'DCM');
+
+assert(isfield(S, 'DCM'), ...
+    'The input file does not contain a DCM variable.');
+
+DCM = S.DCM;
+
+fprintf('Prepared receptor-informed DCM loaded.\n');
+
+%% ------------------------------------------------------------------------
+% 4. Pre-inversion checks
+% -------------------------------------------------------------------------
+
+assert(isfield(DCM, 'M'), ...
+    'DCM.M is missing.');
+
+assert(isfield(DCM.M, 'pE') && isfield(DCM.M.pE, 'G'), ...
+    'DCM.M.pE.G is missing.');
+
+assert(isfield(DCM.M, 'pC') && isfield(DCM.M.pC, 'G'), ...
+    'DCM.M.pC.G is missing.');
+
+assert(isequal(size(DCM.M.pE.G), [5 10]), ...
+    'DCM.M.pE.G must be 5 x 10 before inversion.');
+
+assert(isequal(size(DCM.M.pC.G), [5 10]), ...
+    'DCM.M.pC.G must be 5 x 10 before inversion.');
+
+assert(all(isfinite(full(DCM.M.pE.G)), 'all'), ...
+    'DCM.M.pE.G contains NaN or Inf.');
+
+assert(all(isfinite(full(DCM.M.pC.G)), 'all'), ...
+    'DCM.M.pC.G contains NaN or Inf.');
+
+fprintf('Pre-inversion checks passed.\n');
+fprintf('Prior pE.G size: %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('Prior pC.G size: %s\n', mat2str(size(DCM.M.pC.G)));
+
+prior_G = full(DCM.M.pE.G);
+
+%% ------------------------------------------------------------------------
+% 5. Run the inversion
+% -------------------------------------------------------------------------
+
+fprintf('\nStarting receptor-informed inversion...\n');
+start_time = datetime('now');
+
+DCM = mmn_spm_dcm_erp_MP_eP(DCM);
+
+end_time = datetime('now');
+elapsed_time = end_time - start_time;
+
+fprintf('\nInversion finished.\n');
+fprintf('Elapsed time: %s\n', char(elapsed_time));
+
+%% ------------------------------------------------------------------------
+% 6. Post-inversion checks
+% -------------------------------------------------------------------------
+
+assert(isfield(DCM, 'F'), ...
+    'The inverted DCM does not contain free energy DCM.F.');
+
+assert(isscalar(DCM.F) && isfinite(DCM.F), ...
+    'DCM.F is missing, non-scalar, NaN, or Inf.');
+
+assert(isfield(DCM, 'Ep'), ...
+    'The inverted DCM does not contain DCM.Ep.');
+
+assert(isfield(DCM.Ep, 'G'), ...
+    'The posterior structure does not contain DCM.Ep.G.');
+
+posterior_G = full(DCM.Ep.G);
+
+assert(isequal(size(posterior_G), [5 10]), ...
+    'Posterior DCM.Ep.G is not 5 x 10.');
+
+assert(all(isfinite(posterior_G), 'all'), ...
+    'Posterior DCM.Ep.G contains NaN or Inf.');
+
+posterior_change = posterior_G - prior_G;
+
+fprintf('\n============================================================\n');
+fprintf('INVERSION RESULTS\n');
+fprintf('============================================================\n');
+
+fprintf('Free energy DCM.F: %.10f\n', DCM.F);
+fprintf('Posterior DCM.Ep.G size: %s\n', ...
+    mat2str(size(DCM.Ep.G)));
+
+fprintf('\nPosterior DCM.Ep.G:\n');
+disp(posterior_G);
+
+fprintf('Posterior minus prior G:\n');
+disp(posterior_change);
+
+fprintf('Maximum absolute G change: %.10f\n', ...
+    max(abs(posterior_change), [], 'all'));
+
+fprintf('Mean absolute G change: %.10f\n', ...
+    mean(abs(posterior_change), 'all'));
+
+%% ------------------------------------------------------------------------
+% 7. Save the inverted model
+% -------------------------------------------------------------------------
+
+save(output_file, 'DCM', '-v7.3');
+
+fprintf('\nSaved inverted receptor-informed DCM to:\n%s\n', ...
+    output_file);
+
+%% ------------------------------------------------------------------------
+% 8. Reload and verify the saved result
+% -------------------------------------------------------------------------
+
+V = load(output_file, 'DCM');
+
+assert(isfield(V.DCM, 'F') && isfinite(V.DCM.F), ...
+    'The saved model does not contain a valid DCM.F.');
+
+assert(isfield(V.DCM, 'Ep') && isfield(V.DCM.Ep, 'G'), ...
+    'The saved model does not contain DCM.Ep.G.');
+
+assert(isequal(size(V.DCM.Ep.G), [5 10]), ...
+    'The saved posterior DCM.Ep.G is not 5 x 10.');
+
+fprintf('\nSaved-file verification passed.\n');
+fprintf('Saved free energy: %.10f\n', V.DCM.F);
