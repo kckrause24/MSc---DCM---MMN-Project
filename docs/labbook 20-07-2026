@@ -1,0 +1,115 @@
+# Lab Book — Monday 20 July 2026
+
+## Project
+Receptor-informed dynamic causal modelling of mismatch negativity using a five-source canonical microcircuit model in SPM26.
+
+## Objectives
+1. Reconstruct a five-source, 10-parameter receptor-informed intrinsic-connectivity prior matrix from Ulrich's iEEG DCM collection.
+2. Apply the reconstructed priors to the five-source MEG DCM while preserving the remaining standard prior fields.
+3. Audit the modified Ulrich inversion pathway before inversion.
+4. Invert the receptor-informed model deterministically, with no random EM starts.
+5. Build and invert a matched neutral 10-G baseline and compare model evidence.
+
+## Work completed
+
+### 1. Reconstructed the receptor-informed prior matrix
+Loaded `_DCM_ALL_44reg_PCA.mat`, containing 1,769 iEEG DCMs, and extracted the ten posterior `Ep.G` values from each DCM into a `1769 × 10` matrix. Imported the corresponding original MNI coordinates (`x_original`, `y_original`, `z_original`) from `D_seeg_table_PCA_win4PC_1stLev.xls`.
+
+Defined five source coordinates:
+
+| Source | MNI coordinate |
+|---|---:|
+| Left A1 | `[-42 -22 7]` |
+| Right A1 | `[46 -14 8]` |
+| Left STG | `[-61 -32 8]` |
+| Right STG | `[59 -25 8]` |
+| Right IFG | `[46 20 8]` |
+
+Calculated Euclidean distances from every iEEG contact to each source, converted these distances to Gaussian weights using `sigma = 10 mm` (1 cm), and normalised each source's weights to sum to one. The nearest-contact distances were 3.16, 5.48, 3.00, 5.66 and 3.05 mm for left A1, right A1, left STG, right STG and right IFG, respectively. Effective contributing-contact counts were 102.57, 83.39, 89.80, 82.14 and 107.91.
+
+The weighted average `weights' * DCM_ALL_G` produced the required `5 × 10` prior matrix:
+
+| Source | G7 | G2 | G3 | G4 | G5 | G6 | G8 | G9 | G10 | G1 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Left A1 | -0.0833 | -0.1015 | -0.1255 | 0.2825 | 0.0526 | -0.1507 | -0.0999 | 0.0273 | -0.2183 | -0.2388 |
+| Right A1 | 0.0472 | -0.1622 | -0.1483 | 0.1922 | 0.0004 | -0.0962 | -0.1186 | 0.0527 | -0.1549 | -0.3647 |
+| Left STG | -0.0833 | -0.1040 | -0.1516 | 0.2194 | 0.0733 | -0.1703 | -0.1085 | 0.0546 | -0.2398 | -0.2535 |
+| Right STG | -0.0772 | -0.0963 | -0.1922 | 0.1246 | 0.0303 | -0.1464 | -0.1114 | 0.0766 | -0.2364 | -0.2138 |
+| Right IFG | -0.0409 | -0.1064 | -0.1473 | 0.1850 | 0.0528 | -0.1598 | -0.1054 | 0.0404 | -0.2417 | -0.2704 |
+
+Saved the complete prior calculation, including distances, weights, labelled table, nearest contacts and effective contact counts, to:
+
+`/Users/klauskrause/Documents/MATLAB/Receptor_Prior_Calculation/MMN_5source_G_priors_sigma_1cm.mat`
+
+### 2. Applied the priors to the five-source DCM
+Loaded `DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat`. Standard SPM generated `5 × 4` G prior structures. These complete structures were retained, after which only `DCM.M.pE.G` was replaced by the reconstructed `5 × 10` receptor matrix. The G covariance was expanded to `5 × 10` by repeating the standard scalar G variance, reproducing Ulrich's method. The prepared model was saved as:
+
+`DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat`
+
+Reload checks confirmed that both `DCM.M.pE.G` and `DCM.M.pC.G` were `5 × 10` and unchanged after saving.
+
+### 3. Audited the inversion pipeline
+Confirmed that MATLAB was using the intended custom files:
+
+- `mmn_spm_dcm_erp_MP_eP.m`
+- `mmn_spm_dcm_neural_priors.m`
+- `mmn_spm_dcm_x_neural.m`
+
+The audit verified that the modified inversion function selects supplied `M.pE` and `M.pC`, passes them to the custom neural-state function, uses the receptor-informed `G` matrix in deterministic parameter initialisation, and then calls `spm_nlsi_N`. Both selected prior structures entered the inversion as `5 × 10`. No inversion was performed during the audit.
+
+### 4. Inverted the receptor-informed model
+Ran one deterministic inversion using `mmn_spm_dcm_erp_MP_eP`, with no random EM starts. Runtime was 6 minutes 15 seconds. The inversion reached iteration 64.
+
+Key results:
+
+- Free energy: `F = -397.8823691651`
+- Posterior `DCM.Ep.G` size: `5 × 10`
+- Maximum absolute posterior-minus-prior G change: `0.5901506269`
+- Mean absolute posterior-minus-prior G change: `0.1669380458`
+
+Saved to:
+
+`DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_INVERTED.mat`
+
+### 5. Built and inverted a matched neutral 10-G baseline
+Generated Ulrich's default `5 × 10` prior structures for the same original uninverted five-source DCM. The default G prior means were all zero. The model therefore matched the receptor-informed model in data, sources, architecture, 10-G parameterisation, covariance structure, custom functions and deterministic inversion method; the intended difference was the G prior means.
+
+Runtime was 7 minutes 24 seconds and the inversion also reached iteration 64.
+
+Key results:
+
+- Baseline free energy: `F = -49.9764978655`
+- Posterior `DCM.Ep.G` size: `5 × 10`
+- Maximum absolute posterior-minus-prior G change: `0.7198431349`
+- Mean absolute posterior-minus-prior G change: `0.1961553972`
+
+Saved to:
+
+`DCM_20HC_standard_pitch_CMC_5source_MATCHED_10G_BASELINE_INVERTED.mat`
+
+### 6. Matched model comparison
+
+`Delta F = F_receptor - F_baseline = -347.9058712996`
+
+The matched neutral baseline had much higher model evidence than the receptor-informed model. Under the present model specification and prior construction, the receptor-derived prior means were therefore strongly disfavoured by the MEG data.
+
+## Interpretation and caveat
+Both models inverted successfully and produced finite `5 × 10` posteriors. The receptor model did not fail technically; rather, its prior specification gave substantially lower model evidence than the matched neutral baseline. Both inversions reached iteration 64, apparently the iteration ceiling, so formal convergence should be checked before treating the precise free-energy values as final. The evidence difference is nevertheless very large.
+
+## Files created today
+
+- `MMN_5source_G_priors_sigma_1cm.mat`
+- `DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat`
+- `DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_INVERTED.mat`
+- `DCM_20HC_standard_pitch_CMC_5source_MATCHED_10G_BASELINE_INVERTED.mat`
+
+## MATLAB scripts
+
+1. `01_create_5source_receptor_prior_matrix.m`
+2. `02_apply_5x10_receptor_priors_to_dcm.m`
+3. `03_audit_receptor_inversion_pipeline.m`
+4. `04_invert_receptor_sigma1cm.m`
+5. `05_invert_matched_10G_baseline.m`
+
+## Next steps
+Inspect the stopping and convergence criteria in `spm_nlsi_N` and the custom inversion wrapper, determine whether the 64-iteration limit should be increased or whether an alternative convergence check is needed, and rerun both models identically if required. Confirm all model components other than G prior means are numerically identical before final reporting.
