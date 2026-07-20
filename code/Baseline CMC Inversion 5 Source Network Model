@@ -1,0 +1,87 @@
+%% ========================================================================
+% Run baseline five-source CMC DCM inversion
+%% ========================================================================
+
+clear;
+clc;
+
+%% Paths
+
+custom_dir = ...
+'/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day4_10G_Diagnostic/Ulrich_10G_working_functions';
+
+dcm_file = ...
+'/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day5_5Source_Ulrich/DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat';
+
+output_file = ...
+'/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day5_5Source_Ulrich/DCM_20HC_standard_pitch_CMC_5source_BASELINE_INVERTED.mat';
+
+addpath(custom_dir,'-begin');
+
+%% Locate inversion function
+
+baseline_function = which('mmn_spm_dcm_erp_MP_zero');
+
+fprintf('\nBaseline inversion function:\n%s\n', baseline_function);
+
+%% Load DCM
+
+load(dcm_file,'DCM');
+
+fprintf('\nLoaded uninverted DCM:\n%s\n',dcm_file);
+
+%% Remove random starts if present
+
+if isfield(DCM,'g_rand')
+    DCM = rmfield(DCM,'g_rand');
+end
+
+%% Structural checks
+
+assert(strcmp(DCM.options.model,'CMC'));
+
+assert(numel(DCM.Sname)==5);
+
+assert(all(size(DCM.A{1})==[5 5]));
+assert(all(size(DCM.A{2})==[5 5]));
+assert(all(size(DCM.A{3})==[5 5]));
+assert(all(size(DCM.B{1})==[5 5]));
+assert(all(size(DCM.C)==[5 1]));
+
+fprintf('\nPASS: basic model structure is correct.\n');
+
+%% Baseline inversion
+
+fprintf('\nStarting baseline inversion now.\n');
+fprintf('No receptor-informed priors are being requested.\n');
+fprintf('No random EM-start vector is being supplied.\n\n');
+
+DCM = mmn_spm_dcm_erp_MP_zero(DCM);
+
+fprintf('\nBaseline inversion finished.\n');
+
+%% Verify outputs
+
+required_fields = {'Ep','Cp','F','M'};
+
+for i = 1:numel(required_fields)
+    assert(isfield(DCM,required_fields{i}));
+end
+
+fprintf('\nFitted output fields are present.\n');
+
+fprintf('\nSize of fitted baseline DCM.M.pE.G: %d x %d\n', ...
+    size(DCM.M.pE.G,1),size(DCM.M.pE.G,2));
+
+fprintf('Non-zero values in DCM.M.pE.G: %d\n', ...
+    nnz(full(DCM.M.pE.G)));
+
+fprintf('Size of fitted baseline DCM.M.pC.G: %d x %d\n', ...
+    size(DCM.M.pC.G,1),size(DCM.M.pC.G,2));
+
+fprintf('\nBaseline free energy:\n');
+disp(DCM.F);
+
+save(output_file,'DCM','-v7.3');
+
+fprintf('\nSaved baseline inverted DCM:\n%s\n',output_file);
