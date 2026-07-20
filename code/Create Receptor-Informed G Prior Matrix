@@ -1,0 +1,313 @@
+%% Create 5-source receptor-informed G prior matrix
+
+clear;
+clc;
+
+%% Paths
+
+work_dir = ...
+    '/Users/klauskrause/Documents/MATLAB/Receptor_Prior_Calculation';
+
+dcm_all_file = fullfile( ...
+    work_dir, '_DCM_ALL_44reg_PCA.mat');
+
+coordinate_file = fullfile( ...
+    work_dir, 'D_seeg_table_PCA_win4PC_1stLev.xls');
+
+output_file = fullfile( ...
+    work_dir, 'MMN_5source_G_priors_sigma_1cm.mat');
+
+%% Check that the files exist
+
+assert(isfile(dcm_all_file), ...
+    'Cannot find the DCM_ALL MAT file:\n%s', dcm_all_file);
+
+assert(isfile(coordinate_file), ...
+    'Cannot find the coordinate spreadsheet:\n%s', coordinate_file);
+
+fprintf('Both input files were found.\n');
+
+%% Inspect the variables inside the MAT file
+
+mat_info = whos('-file', dcm_all_file);
+
+disp('Variables in the MAT file:');
+disp(struct2table(mat_info));
+
+%% Load the iEEG DCM collection
+
+S = load(dcm_all_file, 'DCM_ALL');
+
+assert(isfield(S, 'DCM_ALL'), ...
+    'The MAT file does not contain DCM_ALL.');
+
+DCM_ALL = S.DCM_ALL;
+
+fprintf('DCM_ALL size: %d x %d\n', ...
+    size(DCM_ALL,1), size(DCM_ALL,2));
+
+fprintf('Number of iEEG DCMs: %d\n', numel(DCM_ALL));
+%% Inspect the first DCM
+
+assert(iscell(DCM_ALL), ...
+    'DCM_ALL was expected to be a cell array.');
+
+first_DCM = DCM_ALL{1};
+
+assert(isstruct(first_DCM), ...
+    'The first DCM is not a structure.');
+
+assert(isfield(first_DCM, 'Ep'), ...
+    'The first DCM has no Ep field.');
+
+assert(isfield(first_DCM.Ep, 'G'), ...
+    'The first DCM has no Ep.G field.');
+
+first_G = full(first_DCM.Ep.G);
+
+disp('Size of the first DCM Ep.G:');
+disp(size(first_G));
+
+disp('First DCM Ep.G values:');
+disp(first_G);
+%% Extract posterior G parameters from every iEEG DCM
+
+n_channels = numel(DCM_ALL);
+n_G_parameters = 10;
+
+DCM_ALL_G = nan(n_channels, n_G_parameters);
+
+for i = 1:n_channels
+
+    current_DCM = DCM_ALL{i};
+
+    assert(isfield(current_DCM, 'Ep') && ...
+           isfield(current_DCM.Ep, 'G'), ...
+        'DCM_ALL{%d} does not contain Ep.G.', i);
+
+    current_G = full(current_DCM.Ep.G);
+    current_G = current_G(:)';
+
+    assert(numel(current_G) == n_G_parameters, ...
+        ['DCM_ALL{%d}.Ep.G contains %d values, ' ...
+         'but 10 were expected.'], ...
+        i, numel(current_G));
+
+    DCM_ALL_G(i,:) = current_G;
+
+end
+
+fprintf('Extracted G matrix size: %d x %d\n', ...
+    size(DCM_ALL_G,1), size(DCM_ALL_G,2));
+
+assert(all(isfinite(DCM_ALL_G), 'all'), ...
+    'DCM_ALL_G contains NaN or Inf values.');
+%% Read the iEEG coordinate spreadsheet
+
+opts = detectImportOptions(coordinate_file);
+
+fprintf('Spreadsheet has %d detected columns.\n', ...
+    numel(opts.VariableNames));
+
+disp('Detected spreadsheet column names:');
+disp(opts.VariableNames');
+%% Import original iEEG coordinates
+
+opts.SelectedVariableNames = { ...
+    'x_original', ...
+    'y_original', ...
+    'z_original'};
+
+coordinate_table = readtable(coordinate_file, opts);
+
+c_iEEG = table2array(coordinate_table);
+c_iEEG = double(c_iEEG);
+
+fprintf('Coordinate matrix size: %d x %d\n', ...
+    size(c_iEEG,1), size(c_iEEG,2));
+
+disp('First five coordinate rows:');
+disp(c_iEEG(1:min(5,end),:));
+%% Verify coordinate dimensions and row count
+
+assert(size(c_iEEG,2) == 3, ...
+    'The coordinate matrix must have exactly 3 columns.');
+
+assert(size(c_iEEG,1) == size(DCM_ALL_G,1), ...
+    ['Coordinate count and DCM count do not match.\n' ...
+     'Coordinate rows: %d\n' ...
+     'DCM rows: %d'], ...
+    size(c_iEEG,1), size(DCM_ALL_G,1));
+
+assert(all(isfinite(c_iEEG), 'all'), ...
+    'The coordinate matrix contains NaN or Inf values.');
+
+fprintf('Coordinate rows and DCM rows match: %d observations.\n', ...
+    size(c_iEEG,1));
+%% Define the five MMN source coordinates
+
+ROI = [
+   -42  -22   7;   % 1: left A1
+    46  -14   8;   % 2: right A1
+   -61  -32   8;   % 3: left STG
+    59  -25   8;   % 4: right STG
+    46   20   8    % 5: right IFG
+];
+
+ROI_names = {
+    'left A1'
+    'right A1'
+    'left STG'
+    'right STG'
+    'right IFG'
+};
+
+assert(isequal(size(ROI), [5 3]), ...
+    'ROI coordinate matrix must be 5 x 3.');
+
+disp('Five source coordinates:');
+disp(array2table(ROI, ...
+    'VariableNames', {'X','Y','Z'}, ...
+    'RowNames', ROI_names));
+%% Set Gaussian width
+
+sigma_mm = 10;  % 1 cm
+
+fprintf('Gaussian sigma: %.1f mm\n', sigma_mm);
+%% Calculate Euclidean distances from every iEEG channel to every source
+
+n_ROIs = size(ROI,1);
+
+% Rows = 1769 iEEG channels
+% Columns = 5 DCM sources
+distance_matrix = zeros(n_channels, n_ROIs);
+
+for r = 1:n_ROIs
+
+    coordinate_difference = c_iEEG - ROI(r,:);
+
+    distance_matrix(:,r) = sqrt( ...
+        sum(coordinate_difference.^2, 2));
+
+end
+
+fprintf('Distance matrix size: %d x %d\n', ...
+    size(distance_matrix,1), size(distance_matrix,2));
+
+assert(isequal(size(distance_matrix), [1769 5]), ...
+    'Distance matrix is not 1769 x 5.');
+
+assert(all(isfinite(distance_matrix), 'all'), ...
+    'Distance matrix contains NaN or Inf values.');
+
+assert(all(distance_matrix >= 0, 'all'), ...
+    'Distance matrix contains negative values.');
+%% Inspect nearest iEEG channel to each source
+
+nearest_distance = zeros(n_ROIs,1);
+nearest_index = zeros(n_ROIs,1);
+
+for r = 1:n_ROIs
+
+    [nearest_distance(r), nearest_index(r)] = ...
+        min(distance_matrix(:,r));
+
+    fprintf( ...
+        '%s: nearest row = %d, distance = %.2f mm, coordinate = [%.1f %.1f %.1f]\n', ...
+        ROI_names{r}, ...
+        nearest_index(r), ...
+        nearest_distance(r), ...
+        c_iEEG(nearest_index(r),1), ...
+        c_iEEG(nearest_index(r),2), ...
+        c_iEEG(nearest_index(r),3));
+
+end
+%% Convert Euclidean distances into Gaussian weights
+
+raw_weights = exp( ...
+    -(distance_matrix.^2) ./ (2 * sigma_mm^2));
+
+% Normalise each source column so its weights sum to 1
+weight_sums = sum(raw_weights, 1);
+
+assert(all(weight_sums > 0), ...
+    'At least one source has zero total Gaussian weight.');
+
+weights = raw_weights ./ weight_sums;
+
+disp('Normalised weight sums for the five sources:');
+disp(sum(weights, 1));
+%% Calculate the 5 x 10 receptor-informed prior matrix
+
+DCM_prior_G = weights' * DCM_ALL_G;
+
+fprintf('Prior matrix size: %d x %d\n', ...
+    size(DCM_prior_G,1), size(DCM_prior_G,2));
+
+assert(isequal(size(DCM_prior_G), [5 10]), ...
+    'The final prior matrix is not 5 x 10.');
+
+assert(all(isfinite(DCM_prior_G), 'all'), ...
+    'The final prior matrix contains NaN or Inf values.');
+
+disp('Receptor-informed 5 x 10 G prior matrix:');
+disp(DCM_prior_G);
+%% Label the rows and columns
+
+G_names = {
+    'G7_i_sp_sp'
+    'G2_i_sp_ss'
+    'G3_i_ii_ss'
+    'G4_i_ii_ii'
+    'G5_e_ss_ii'
+    'G6_e_dp_ii'
+    'G8_e_ss_sp'
+    'G9_i_ii_dp'
+    'G10_i_dp_dp'
+    'G1_i_ss_ss'
+};
+
+prior_table = array2table( ...
+    DCM_prior_G, ...
+    'VariableNames', G_names, ...
+    'RowNames', ROI_names);
+
+disp('Labelled receptor-informed prior matrix:');
+disp(prior_table);
+%% Inspect how concentrated the Gaussian weighting is
+
+effective_channel_count = ...
+    1 ./ sum(weights.^2, 1);
+
+for r = 1:n_ROIs
+
+    fprintf( ...
+        '%s: effective number of contributing channels = %.2f\n', ...
+        ROI_names{r}, effective_channel_count(r));
+
+end
+%% Save the receptor-informed prior calculation
+
+calculation_method = ...
+    ['Euclidean distance in MNI coordinate space; ' ...
+     'Gaussian sigma = 10 mm; ' ...
+     'weighted average of DCM_ALL{i}.Ep.G'];
+
+save( ...
+    output_file, ...
+    'DCM_prior_G', ...
+    'prior_table', ...
+    'ROI', ...
+    'ROI_names', ...
+    'G_names', ...
+    'sigma_mm', ...
+    'distance_matrix', ...
+    'weights', ...
+    'nearest_distance', ...
+    'nearest_index', ...
+    'effective_channel_count', ...
+    'calculation_method', ...
+    '-v7.3');
+
+fprintf('\nSaved receptor-prior calculation to:\n%s\n', ...
+    output_file);
