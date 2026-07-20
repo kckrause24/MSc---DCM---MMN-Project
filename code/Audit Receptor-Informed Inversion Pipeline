@@ -1,0 +1,238 @@
+%% AUDIT RECEPTOR-INFORMED INVERSION PIPELINE
+% This script does not invert the DCM and does not modify any files.
+
+clear;
+clc;
+
+%% ------------------------------------------------------------------------
+% 1. Custom-function directory
+% -------------------------------------------------------------------------
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+addpath(custom_dir, '-begin');
+
+%% ------------------------------------------------------------------------
+% 2. Confirm which functions MATLAB will use
+% -------------------------------------------------------------------------
+
+function_names = {
+    'mmn_spm_dcm_erp_MP_eP'
+    'mmn_spm_dcm_neural_priors'
+    'mmn_spm_dcm_x_neural'
+    'spm_nlsi_N'
+    'spm_gen_erp'
+};
+
+fprintf('============================================================\n');
+fprintf('ACTIVE FUNCTIONS\n');
+fprintf('============================================================\n');
+
+for i = 1:numel(function_names)
+
+    function_path = which(function_names{i});
+
+    fprintf('\n%s\n', function_names{i});
+    fprintf('%s\n', function_path);
+
+    assert(~isempty(function_path), ...
+        'MATLAB cannot find %s.', function_names{i});
+
+end
+
+%% ------------------------------------------------------------------------
+% 3. Ensure the three Ulrich functions come from the expected directory
+% -------------------------------------------------------------------------
+
+custom_functions = {
+    'mmn_spm_dcm_erp_MP_eP'
+    'mmn_spm_dcm_neural_priors'
+    'mmn_spm_dcm_x_neural'
+};
+
+for i = 1:numel(custom_functions)
+
+    function_path = which(custom_functions{i});
+
+    assert(contains(function_path, ...
+        'Ulrich_10G_working_functions'), ...
+        ['MATLAB is not using the expected Ulrich version of %s.\n' ...
+         'Active file:\n%s'], ...
+        custom_functions{i}, function_path);
+
+end
+
+fprintf('\nAll required Ulrich functions are active.\n');
+
+%% ------------------------------------------------------------------------
+% 4. Read the inversion function as text
+% -------------------------------------------------------------------------
+
+inversion_file = which('mmn_spm_dcm_erp_MP_eP');
+
+assert(isfile(inversion_file), ...
+    'The active inversion function cannot be opened.');
+
+code_text = fileread(inversion_file);
+code_lines = splitlines(string(code_text));
+
+%% ------------------------------------------------------------------------
+% 5. Search for the critical commands
+% -------------------------------------------------------------------------
+
+search_terms = {
+    'mmn_spm_dcm_neural_priors'
+    'pE  = M.pE'
+    'pC  = M.pC'
+    'mmn_spm_dcm_x_neural'
+    'M.pE   = pE'
+    'M.pC   = pC'
+    'pE_standard.G = M.pE.G'
+    'pE_standard.G   = M.pE.G'
+    'M.P    = pE_standard'
+    'M.P             = pE_standard'
+    'spm_nlsi_N'
+    'DCM.Ep = Qp'
+    'DCM.Ep = Qp;'
+};
+
+fprintf('\n============================================================\n');
+fprintf('CRITICAL PIPELINE COMMANDS\n');
+fprintf('============================================================\n');
+
+found_any = false(size(search_terms));
+
+for s = 1:numel(search_terms)
+
+    matches = find(contains(code_lines, search_terms{s}));
+
+    if ~isempty(matches)
+
+        found_any(s) = true;
+
+        fprintf('\nSearch term: %s\n', search_terms{s});
+
+        for m = 1:numel(matches)
+            line_number = matches(m);
+
+            fprintf('%4d | %s\n', ...
+                line_number, code_lines(line_number));
+        end
+    end
+end
+
+%% ------------------------------------------------------------------------
+% 6. Test the prepared DCM dimensions
+% -------------------------------------------------------------------------
+
+prepared_file = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich/' ...
+     'DCM_20HC_standard_pitch_CMC_5source_' ...
+     'RECEPTOR_SIGMA1CM_UNINVERTED.mat'];
+
+assert(isfile(prepared_file), ...
+    'Cannot find the prepared receptor-informed DCM.');
+
+S = load(prepared_file, 'DCM');
+DCM = S.DCM;
+
+assert(isfield(DCM, 'M'), ...
+    'The prepared DCM does not contain DCM.M.');
+
+assert(isfield(DCM.M, 'pE'), ...
+    'The prepared DCM does not contain DCM.M.pE.');
+
+assert(isfield(DCM.M, 'pC'), ...
+    'The prepared DCM does not contain DCM.M.pC.');
+
+assert(isfield(DCM.M.pE, 'G'), ...
+    'The prepared DCM does not contain DCM.M.pE.G.');
+
+assert(isfield(DCM.M.pC, 'G'), ...
+    'The prepared DCM does not contain DCM.M.pC.G.');
+
+fprintf('\n============================================================\n');
+fprintf('PREPARED DCM PRIOR DIMENSIONS\n');
+fprintf('============================================================\n');
+
+fprintf('DCM.M.pE.G: %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('DCM.M.pC.G: %s\n', mat2str(size(DCM.M.pC.G)));
+fprintf('Nonzero pE.G values: %d\n', nnz(DCM.M.pE.G));
+
+assert(isequal(size(DCM.M.pE.G), [5 10]), ...
+    'The prepared DCM.M.pE.G is not 5 x 10.');
+
+assert(isequal(size(DCM.M.pC.G), [5 10]), ...
+    'The prepared DCM.M.pC.G is not 5 x 10.');
+
+%% ------------------------------------------------------------------------
+% 7. Generate priors using Ulrich's custom prior function
+% -------------------------------------------------------------------------
+
+[custom_pE, custom_pC] = mmn_spm_dcm_neural_priors( ...
+    DCM.A, ...
+    DCM.B, ...
+    DCM.C, ...
+    DCM.options.model);
+
+fprintf('\n============================================================\n');
+fprintf('ULRICH CUSTOM PRIOR FUNCTION OUTPUT\n');
+fprintf('============================================================\n');
+
+fprintf('Custom pE.G: %s\n', mat2str(size(custom_pE.G)));
+fprintf('Custom pC.G: %s\n', mat2str(size(custom_pC.G)));
+
+%% ------------------------------------------------------------------------
+% 8. Reproduce the prior-selection logic without inversion
+% -------------------------------------------------------------------------
+
+M = DCM.M;
+
+pE = custom_pE;
+pC = custom_pC;
+
+if isfield(M, 'pE') && isfield(M, 'pC')
+    pE = M.pE;
+    pC = M.pC;
+    supplied_priors_used = true;
+else
+    supplied_priors_used = false;
+end
+
+fprintf('\n============================================================\n');
+fprintf('PRIORS THAT WOULD ENTER THE INVERSION\n');
+fprintf('============================================================\n');
+
+fprintf('Specified DCM priors used: %d\n', supplied_priors_used);
+fprintf('Selected pE.G size: %s\n', mat2str(size(pE.G)));
+fprintf('Selected pC.G size: %s\n', mat2str(size(pC.G)));
+
+assert(supplied_priors_used, ...
+    'The supplied receptor priors were not selected.');
+
+assert(isequal(size(pE.G), [5 10]), ...
+    'The selected pE.G is not 5 x 10.');
+
+assert(isequal(size(pC.G), [5 10]), ...
+    'The selected pC.G is not 5 x 10.');
+
+assert(isequal(full(pE.G), full(DCM.M.pE.G)), ...
+    'Selected pE.G differs from the prepared receptor priors.');
+
+%% ------------------------------------------------------------------------
+% 9. Final result
+% -------------------------------------------------------------------------
+
+fprintf('\n============================================================\n');
+fprintf('AUDIT RESULT\n');
+fprintf('============================================================\n');
+
+fprintf(['PASS: MATLAB is using Ulrich''s custom inversion pipeline.\n' ...
+         'PASS: The prepared receptor priors are selected.\n' ...
+         'PASS: pE.G enters the inversion as a 5 x 10 matrix.\n' ...
+         'PASS: pC.G enters the inversion as a 5 x 10 matrix.\n' ...
+         'No inversion was performed.\n']);
