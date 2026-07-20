@@ -1,0 +1,188 @@
+%% Apply 5 x 10 receptor-informed priors to the five-source DCM
+
+clear;
+clc;
+
+%% ------------------------------------------------------------------------
+% 1. File paths
+% -------------------------------------------------------------------------
+
+dcm_folder = ...
+    '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day5_5Source_Ulrich';
+
+uninverted_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat');
+
+prior_file = fullfile( ...
+    '/Users/klauskrause/Documents/MATLAB/Receptor_Prior_Calculation', ...
+    'MMN_5source_G_priors_sigma_1cm.mat');
+
+output_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat');
+
+%% ------------------------------------------------------------------------
+% 2. Check files
+% -------------------------------------------------------------------------
+
+assert(isfile(uninverted_file), ...
+    'Cannot find uninverted DCM:\n%s', uninverted_file);
+
+assert(isfile(prior_file), ...
+    'Cannot find receptor-prior file:\n%s', prior_file);
+
+fprintf('Both input files were found.\n');
+
+%% ------------------------------------------------------------------------
+% 3. Load the uninverted DCM
+% -------------------------------------------------------------------------
+
+S = load(uninverted_file, 'DCM');
+
+assert(isfield(S, 'DCM'), ...
+    'The uninverted file does not contain DCM.');
+
+DCM = S.DCM;
+
+fprintf('Uninverted DCM loaded successfully.\n');
+
+%% ------------------------------------------------------------------------
+% 4. Load the receptor-informed prior matrix
+% -------------------------------------------------------------------------
+
+R = load(prior_file, 'DCM_prior_G');
+
+assert(isfield(R, 'DCM_prior_G'), ...
+    'The prior file does not contain DCM_prior_G.');
+
+receptor_pE_G = R.DCM_prior_G;
+
+assert(isequal(size(receptor_pE_G), [5 10]), ...
+    'The receptor prior matrix must be 5 x 10.');
+
+assert(all(isfinite(receptor_pE_G), 'all'), ...
+    'The receptor prior matrix contains NaN or Inf.');
+
+fprintf('Receptor prior matrix loaded successfully.\n');
+
+%% ------------------------------------------------------------------------
+% 5. Generate the complete standard prior structures
+% -------------------------------------------------------------------------
+
+[pE, pC] = spm_dcm_neural_priors( ...
+    DCM.A, ...
+    DCM.B, ...
+    DCM.C, ...
+    DCM.options.model);
+
+fprintf('\nStandard SPM prior dimensions:\n');
+fprintf('pE.G = %s\n', mat2str(size(pE.G)));
+fprintf('pC.G = %s\n', mat2str(size(pC.G)));
+
+assert(isequal(size(pE.G), [5 4]), ...
+    'Unexpected standard pE.G dimensions.');
+
+assert(isequal(size(pC.G), [5 4]), ...
+    'Unexpected standard pC.G dimensions.');
+
+%% ------------------------------------------------------------------------
+% 6. Preserve the complete standard prior structures
+% -------------------------------------------------------------------------
+
+DCM.M.pE = pE;
+DCM.M.pC = pC;
+
+%% ------------------------------------------------------------------------
+% 7. Replace only the G prior means with the receptor-informed 5 x 10 matrix
+% -------------------------------------------------------------------------
+
+DCM.M.pE.G = sparse(receptor_pE_G);
+
+%% ------------------------------------------------------------------------
+% 8. Expand the G prior covariance to 5 x 10
+%
+% This reproduces Ulrich's method:
+%
+% pC_help = repelem(pC.G(1),5,10);
+% -------------------------------------------------------------------------
+
+standard_G_variance = full(pC.G(1));
+
+assert(isscalar(standard_G_variance), ...
+    'Could not extract the standard G prior variance.');
+
+DCM.M.pC.G = sparse( ...
+    repmat(standard_G_variance, 5, 10));
+
+%% ------------------------------------------------------------------------
+% 9. Validate the final prior structures
+% -------------------------------------------------------------------------
+
+assert(isequal(size(DCM.M.pE.G), [5 10]), ...
+    'Final DCM.M.pE.G is not 5 x 10.');
+
+assert(isequal(size(DCM.M.pC.G), [5 10]), ...
+    'Final DCM.M.pC.G is not 5 x 10.');
+
+assert(all(isfinite(full(DCM.M.pE.G)), 'all'), ...
+    'DCM.M.pE.G contains NaN or Inf.');
+
+assert(all(isfinite(full(DCM.M.pC.G)), 'all'), ...
+    'DCM.M.pC.G contains NaN or Inf.');
+
+assert(all(full(DCM.M.pC.G(:)) > 0), ...
+    'DCM.M.pC.G contains non-positive variances.');
+
+%% ------------------------------------------------------------------------
+% 10. Display the final prior structures
+% -------------------------------------------------------------------------
+
+fprintf('\nFinal receptor-informed prior dimensions:\n');
+fprintf('DCM.M.pE.G = %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('DCM.M.pC.G = %s\n', mat2str(size(DCM.M.pC.G)));
+
+fprintf('\nFinal receptor-informed DCM.M.pE.G:\n');
+disp(full(DCM.M.pE.G));
+
+fprintf('Final DCM.M.pC.G:\n');
+disp(full(DCM.M.pC.G));
+
+%% ------------------------------------------------------------------------
+% 11. Confirm that all other prior fields remain standard
+% -------------------------------------------------------------------------
+
+fprintf('Fields retained in DCM.M.pE:\n');
+disp(fieldnames(DCM.M.pE));
+
+fprintf('Fields retained in DCM.M.pC:\n');
+disp(fieldnames(DCM.M.pC));
+
+%% ------------------------------------------------------------------------
+% 12. Save the prepared but uninverted receptor-informed DCM
+% -------------------------------------------------------------------------
+
+save(output_file, 'DCM', '-v7.3');
+
+fprintf('\nSaved prepared receptor-informed DCM to:\n%s\n', ...
+    output_file);
+
+%% ------------------------------------------------------------------------
+% 13. Reload and verify the saved file
+% -------------------------------------------------------------------------
+
+V = load(output_file, 'DCM');
+
+assert(isequal(size(V.DCM.M.pE.G), [5 10]), ...
+    'Reloaded pE.G is not 5 x 10.');
+
+assert(isequal(size(V.DCM.M.pC.G), [5 10]), ...
+    'Reloaded pC.G is not 5 x 10.');
+
+assert(isequal( ...
+    full(V.DCM.M.pE.G), ...
+    full(DCM.M.pE.G)), ...
+    'Reloaded pE.G does not match the saved values.');
+
+fprintf('\nSaved-file verification passed.\n');
+fprintf('The model has not yet been inverted.\n');
