@@ -1,0 +1,209 @@
+%% Matched 10-G baseline inversion
+% Same data, architecture and inversion function as the receptor model.
+% Difference: uses Ulrich's default 10-G prior means rather than
+% receptor-informed prior means.
+
+clear;
+clc;
+
+%% Paths
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+dcm_folder = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich'];
+
+% Use the original five-source uninverted model, before receptor priors
+% were inserted.
+input_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat');
+
+output_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_MATCHED_10G_BASELINE_INVERTED.mat');
+
+receptor_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_INVERTED.mat');
+
+%% Activate Ulrich's functions
+
+addpath(custom_dir, '-begin');
+
+required_functions = {
+    'mmn_spm_dcm_erp_MP_eP'
+    'mmn_spm_dcm_neural_priors'
+    'mmn_spm_dcm_x_neural'
+};
+
+for i = 1:numel(required_functions)
+
+    active_path = which(required_functions{i});
+
+    assert(~isempty(active_path), ...
+        'MATLAB cannot find %s.', required_functions{i});
+
+    assert(contains(active_path, 'Ulrich_10G_working_functions'), ...
+        'MATLAB is using the wrong version of %s:\n%s', ...
+        required_functions{i}, active_path);
+
+    fprintf('%s:\n%s\n\n', ...
+        required_functions{i}, active_path);
+end
+
+%% Load the original uninverted five-source DCM
+
+assert(isfile(input_file), ...
+    'Cannot find the original uninverted model:\n%s', input_file);
+
+S = load(input_file, 'DCM');
+DCM = S.DCM;
+
+fprintf('Original uninverted five-source DCM loaded.\n');
+
+%% Generate Ulrich's default 10-G priors
+
+[pE, pC] = mmn_spm_dcm_neural_priors( ...
+    DCM.A, ...
+    DCM.B, ...
+    DCM.C, ...
+    DCM.options.model);
+
+fprintf('\nDefault Ulrich prior dimensions:\n');
+fprintf('pE.G: %s\n', mat2str(size(pE.G)));
+fprintf('pC.G: %s\n', mat2str(size(pC.G)));
+
+assert(isequal(size(pE.G), [5 10]), ...
+    'Default pE.G is not 5 x 10.');
+
+assert(isequal(size(pC.G), [5 10]), ...
+    'Default pC.G is not 5 x 10.');
+
+assert(all(isfinite(full(pE.G)), 'all'), ...
+    'Default pE.G contains NaN or Inf.');
+
+assert(all(isfinite(full(pC.G)), 'all'), ...
+    'Default pC.G contains NaN or Inf.');
+
+%% Insert default 10-G priors into the DCM
+
+if ~isfield(DCM, 'M') || isempty(DCM.M)
+    DCM.M = struct();
+end
+
+DCM.M.pE = pE;
+DCM.M.pC = pC;
+
+baseline_prior_G = full(DCM.M.pE.G);
+
+fprintf('\nMatched baseline priors prepared.\n');
+fprintf('DCM.M.pE.G size: %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('DCM.M.pC.G size: %s\n', mat2str(size(DCM.M.pC.G)));
+
+fprintf('\nDefault baseline prior means, pE.G:\n');
+disp(baseline_prior_G);
+
+%% Run the matched inversion
+
+fprintf('\nStarting matched 10-G baseline inversion...\n');
+
+start_time = datetime('now');
+
+DCM = mmn_spm_dcm_erp_MP_eP(DCM);
+
+elapsed_time = datetime('now') - start_time;
+
+fprintf('\nBaseline inversion finished.\n');
+fprintf('Elapsed time: %s\n', char(elapsed_time));
+
+%% Check the result
+
+assert(isfield(DCM, 'F'), ...
+    'The inverted baseline does not contain DCM.F.');
+
+assert(isscalar(DCM.F) && isfinite(DCM.F), ...
+    'The baseline free energy is invalid.');
+
+assert(isfield(DCM, 'Ep') && isfield(DCM.Ep, 'G'), ...
+    'The baseline posterior does not contain DCM.Ep.G.');
+
+assert(isequal(size(DCM.Ep.G), [5 10]), ...
+    'The baseline posterior DCM.Ep.G is not 5 x 10.');
+
+baseline_posterior_G = full(DCM.Ep.G);
+baseline_change_G = baseline_posterior_G - baseline_prior_G;
+
+fprintf('\n============================================================\n');
+fprintf('MATCHED 10-G BASELINE RESULTS\n');
+fprintf('============================================================\n');
+
+fprintf('Baseline free energy: %.10f\n', DCM.F);
+fprintf('Posterior DCM.Ep.G size: %s\n', ...
+    mat2str(size(DCM.Ep.G)));
+
+fprintf('\nBaseline posterior DCM.Ep.G:\n');
+disp(baseline_posterior_G);
+
+fprintf('Posterior minus prior G:\n');
+disp(baseline_change_G);
+
+fprintf('Maximum absolute G change: %.10f\n', ...
+    max(abs(baseline_change_G), [], 'all'));
+
+fprintf('Mean absolute G change: %.10f\n', ...
+    mean(abs(baseline_change_G), 'all'));
+
+%% Save the matched baseline
+
+save(output_file, 'DCM', '-v7.3');
+
+fprintf('\nSaved matched baseline to:\n%s\n', output_file);
+
+%% Compare with the receptor-informed model
+
+assert(isfile(receptor_file), ...
+    'Cannot find the inverted receptor-informed model:\n%s', ...
+    receptor_file);
+
+R = load(receptor_file, 'DCM');
+
+F_baseline = DCM.F;
+F_receptor = R.DCM.F;
+delta_F = F_receptor - F_baseline;
+
+fprintf('\n============================================================\n');
+fprintf('MATCHED MODEL COMPARISON\n');
+fprintf('============================================================\n');
+
+fprintf('Matched baseline F:  %.10f\n', F_baseline);
+fprintf('Receptor model F:    %.10f\n', F_receptor);
+fprintf('Delta F, receptor - baseline: %.10f\n', delta_F);
+
+if delta_F > 0
+    fprintf('Result: receptor-informed model has higher evidence.\n');
+elseif delta_F < 0
+    fprintf('Result: matched baseline has higher evidence.\n');
+else
+    fprintf('Result: the models have equal free energy.\n');
+end
+
+%% Reload saved baseline to verify it
+
+V = load(output_file, 'DCM');
+
+assert(isfield(V.DCM, 'F') && isfinite(V.DCM.F), ...
+    'Saved baseline does not contain valid free energy.');
+
+assert(isfield(V.DCM, 'Ep') && isfield(V.DCM.Ep, 'G'), ...
+    'Saved baseline does not contain DCM.Ep.G.');
+
+assert(isequal(size(V.DCM.Ep.G), [5 10]), ...
+    'Saved baseline posterior is not 5 x 10.');
+
+fprintf('\nSaved-file verification passed.\n');
+fprintf('Saved baseline free energy: %.10f\n', V.DCM.F);
