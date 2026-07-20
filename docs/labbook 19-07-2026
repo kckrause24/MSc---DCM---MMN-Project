@@ -1,0 +1,110 @@
+# Sunday 19th July 2026
+
+## Objectives
+
+- Construct final five-source CMC DCM.
+- Verify DCM structure.
+- Verify parameter/prior structure.
+- Invert baseline DCM.
+
+---
+
+## Completed
+
+### Five-source DCM
+
+Constructed final five-source CMC network using Ulrich's architecture.
+
+Sources:
+
+- Left A1
+- Right A1
+- Left STG
+- Right STG
+- Right IFG
+
+Saved as
+
+`DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat`
+
+---
+
+### Structural validation
+
+Verified:
+
+- CMC model
+- ERP analysis
+- Five sources
+- Correct A matrix dimensions
+- Correct B matrix
+- Correct C matrix
+- No `DCM.g_rand`
+
+All structural checks passed.
+
+---
+
+### Prior validation
+
+Confirmed that intrinsic priors are created during inversion.
+
+Post-inversion checks:
+
+- `DCM.M.pE.G` = 5 × 10
+- `DCM.M.pC.G` = 5 × 10
+- Non-zero prior expectations = 0
+
+Therefore the baseline model contains ten intrinsic parameters per source with zero-valued baseline prior expectations.
+
+---
+
+### Baseline inversion
+
+Baseline inversion completed using
+
+`mmn_spm_dcm_erp_MP_zero`
+
+Parameter initialisation was successful.
+
+Free energy optimisation converged normally.
+
+Final free energy:
+F = -49.9765
+
+Output:
+
+`DCM_20HC_standard_pitch_CMC_5source_BASELINE_INVERTED.mat`
+
+---
+
+## Outcome
+
+Successfully completed:
+
+- Five-source model construction
+- Structural validation
+- Baseline prior validation
+- Baseline inversion
+
+---
+
+## Files created
+
+`DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat`
+
+Final uninverted five-source CMC DCM.
+
+`DCM_20HC_standard_pitch_CMC_5source_BASELINE_INVERTED.mat`
+
+Successfully inverted baseline DCM.
+
+---
+
+## Next steps
+
+- Run receptor-informed inversion
+- Sigma = 1 cm
+- No alternative EM starts
+- Verify receptor-informed prior structure
+- Compare baseline vs receptor-informed priors
