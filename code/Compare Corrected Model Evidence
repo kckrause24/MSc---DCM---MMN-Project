@@ -1,0 +1,51 @@
+%% Compare corrected receptor-informed model with matched 10-G baseline
+
+clear;
+clc;
+
+dcm_folder = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich'];
+
+baseline_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_MATCHED_10G_BASELINE_INVERTED.mat');
+
+receptor_file = fullfile( ...
+    dcm_folder, ...
+    ['DCM_20HC_standard_pitch_CMC_5source_' ...
+     'RECEPTOR_SIGMA1CM_CORRECTED_INVERTED.mat']);
+
+assert(isfile(baseline_file), ...
+    'Cannot find baseline model:\n%s', baseline_file);
+
+assert(isfile(receptor_file), ...
+    'Cannot find corrected receptor model:\n%s', receptor_file);
+
+B = load(baseline_file, 'DCM');
+R = load(receptor_file, 'DCM');
+
+assert(isfield(B, 'DCM') && isfield(B.DCM, 'F'), ...
+    'Baseline file does not contain DCM.F.');
+
+assert(isfield(R, 'DCM') && isfield(R.DCM, 'F'), ...
+    'Receptor file does not contain DCM.F.');
+
+baseline_F = B.DCM.F;
+receptor_F = R.DCM.F;
+delta_F = receptor_F - baseline_F;
+
+fprintf('\n============================================================\n');
+fprintf('CORRECTED MODEL COMPARISON\n');
+fprintf('============================================================\n');
+fprintf('Baseline F:             %.12f\n', baseline_F);
+fprintf('Receptor-informed F:    %.12f\n', receptor_F);
+fprintf('Delta F, receptor-base: %.12f\n', delta_F);
+
+if delta_F > 0
+    fprintf('Preferred model: receptor-informed\n');
+elseif delta_F < 0
+    fprintf('Preferred model: baseline\n');
+else
+    fprintf('The models have equal free energy.\n');
+end
