@@ -1,0 +1,112 @@
+%% Apply corrected 5 x 10 receptor-informed priors to the five-source DCM
+
+clear;
+clc;
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+assert(isfolder(custom_dir), ...
+    'Cannot find Ulrich custom-function directory:\n%s', custom_dir);
+addpath(custom_dir, '-begin');
+
+active_prior_function = which('mmn_spm_dcm_neural_priors');
+assert(~isempty(active_prior_function), ...
+    'MATLAB cannot find mmn_spm_dcm_neural_priors.');
+assert(contains(active_prior_function, 'Ulrich_10G_working_functions'), ...
+    'MATLAB is using the wrong prior function:\n%s', active_prior_function);
+fprintf('Active Ulrich prior function:\n%s\n\n', active_prior_function);
+
+dcm_folder = ...
+    '/Users/klauskrause/Documents/MATLAB/ds004837_controls_spm/DCM_Day5_5Source_Ulrich';
+
+uninverted_file = fullfile(dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat');
+
+prior_file = fullfile( ...
+    '/Users/klauskrause/Documents/MATLAB/Receptor_Prior_Calculation', ...
+    'MMN_5source_G_priors_sigma_1cm.mat');
+
+output_file = fullfile(dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat');
+
+assert(isfile(uninverted_file), 'Cannot find uninverted DCM:\n%s', uninverted_file);
+assert(isfile(prior_file), 'Cannot find receptor-prior file:\n%s', prior_file);
+fprintf('Both input files were found.\n');
+
+S = load(uninverted_file, 'DCM');
+assert(isfield(S, 'DCM'), 'The uninverted file does not contain DCM.');
+DCM = S.DCM;
+fprintf('Original uninverted DCM loaded successfully.\n');
+
+R = load(prior_file, 'DCM_prior_G');
+assert(isfield(R, 'DCM_prior_G'), 'The prior file does not contain DCM_prior_G.');
+receptor_pE_G = full(R.DCM_prior_G);
+assert(isequal(size(receptor_pE_G), [5 10]), 'The receptor prior matrix must be 5 x 10.');
+assert(all(isfinite(receptor_pE_G), 'all'), 'The receptor prior matrix contains NaN or Inf.');
+fprintf('Receptor prior matrix loaded successfully.\n');
+fprintf('Receptor prior matrix size: %s\n', mat2str(size(receptor_pE_G)));
+
+[pE, pC] = mmn_spm_dcm_neural_priors( ...
+    DCM.A, DCM.B, DCM.C, DCM.options.model);
+
+assert(isequal(size(pE.G), [5 10]), 'Unexpected Ulrich pE.G dimensions.');
+assert(isequal(size(pC.G), [5 10]), 'Unexpected Ulrich pC.G dimensions.');
+
+fprintf('\nUlrich default prior dimensions:\n');
+fprintf('pE.G = %s\n', mat2str(size(pE.G)));
+fprintf('pC.G = %s\n', mat2str(size(pC.G)));
+
+DCM.M.pE = pE;
+DCM.M.pC = pC;
+default_Ulrich_pE = pE;
+default_Ulrich_pC = pC;
+
+% The only intended model difference.
+DCM.M.pE.G = sparse(receptor_pE_G);
+
+assert(isequaln(full(DCM.M.pC.G), full(default_Ulrich_pC.G)), ...
+    'DCM.M.pC.G was changed unexpectedly.');
+
+pE_fields = fieldnames(default_Ulrich_pE);
+for i = 1:numel(pE_fields)
+    field_name = pE_fields{i};
+    if strcmp(field_name, 'G'), continue; end
+    assert(isequaln(DCM.M.pE.(field_name), default_Ulrich_pE.(field_name)), ...
+        'Unexpected change in DCM.M.pE.%s.', field_name);
+end
+fprintf('\nAll non-G prior expectation fields remain unchanged.\n');
+
+pC_fields = fieldnames(default_Ulrich_pC);
+for i = 1:numel(pC_fields)
+    field_name = pC_fields{i};
+    assert(isequaln(DCM.M.pC.(field_name), default_Ulrich_pC.(field_name)), ...
+        'Unexpected change in DCM.M.pC.%s.', field_name);
+end
+fprintf('All prior covariance fields remain unchanged.\n');
+
+fprintf('\n============================================================\n');
+fprintf('FINAL RECEPTOR-INFORMED PRIOR STRUCTURES\n');
+fprintf('============================================================\n');
+fprintf('DCM.M.pE.G size: %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('DCM.M.pC.G size: %s\n', mat2str(size(DCM.M.pC.G)));
+fprintf('Maximum absolute difference between receptor and baseline pE.G: %.12g\n', ...
+    max(abs(full(DCM.M.pE.G) - full(default_Ulrich_pE.G)), [], 'all'));
+
+save(output_file, 'DCM', '-v7.3');
+fprintf('\nSaved prepared receptor-informed DCM to:\n%s\n', output_file);
+
+V = load(output_file, 'DCM');
+assert(isequaln(full(V.DCM.M.pE.G), receptor_pE_G), ...
+    'Reloaded pE.G does not match the receptor matrix.');
+assert(isequaln(full(V.DCM.M.pC.G), full(default_Ulrich_pC.G)), ...
+    'Reloaded pC.G does not match the Ulrich covariance.');
+
+fprintf('\n============================================================\n');
+fprintf('SAVED-FILE VERIFICATION PASSED\n');
+fprintf('============================================================\n');
+fprintf('Only DCM.M.pE.G differs from the matched baseline prior specification.\n');
+fprintf('All DCM.M.pC fields, including pC.D and pC.G, are unchanged.\n');
+fprintf('The model has not yet been inverted.\n');
