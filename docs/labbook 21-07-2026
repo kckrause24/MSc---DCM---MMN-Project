@@ -1,0 +1,70 @@
+# MSc Thesis Lab Book
+
+## Tuesday 21 July 2026
+
+**Activity:** Verification and correction of the matched baseline versus receptor-informed 10-G DCM comparison
+
+## Objectives
+
+- Audit the matched baseline and receptor-informed DCMs to confirm whether all fixed model components and prior structures were identical except for the intended receptor-informed G prior means.
+- Correct any unintended mismatch in the prior specification.
+- Re-invert the corrected receptor-informed five-source CMC DCM using Ulrich's modified deterministic 10-G inversion code.
+- Compare the corrected receptor-informed model evidence with the matched zero-centred 10-G baseline.
+
+## Work completed
+
+1. **Model audit:** Compared `A`, `B`, `C`, source locations, source names, experimental inputs, model options, all prior expectations (`pE`), and all prior covariances (`pC`) between the baseline and receptor-informed models.
+2. **Mismatch identified:** Confirmed that all fixed model components were identical. The intended difference in `pE.G` was present, but `pC.D` also differed, with a maximum absolute difference of `0.015625`. Therefore, the original comparison was not fully isolated to the receptor-informed G prior means.
+3. **Prior preparation corrected:** Rebuilt the receptor-informed model using `mmn_spm_dcm_neural_priors`, preserved the complete Ulrich 10-G `pE` and `pC` structures, and replaced only `DCM.M.pE.G` with the 5 × 10 receptor-informed matrix. The manual reconstruction of `pC.G` was removed.
+4. **Verification:** Confirmed that all non-G prior expectations and all prior covariance fields, including `pC.D` and `pC.G`, remained unchanged. The saved uninverted receptor-informed model passed reload verification.
+5. **Re-inversion:** Inverted the corrected receptor-informed model using `mmn_spm_dcm_erp_MP_eP`, with the supplied 5 × 10 priors and no random EM starts.
+6. **Model comparison:** Compared the corrected receptor-informed free energy with the matched 10-G baseline free energy.
+
+## Audit results
+
+| Component | Matched? | Intended? | Interpretation |
+|---|:---:|:---:|---|
+| `A`, `B`, `C` | Yes | Yes | Same connectivity architecture |
+| `Lpos`, `Sname` | Yes | Yes | Same sources and locations |
+| `xU`, `options` | Yes | Yes | Same inputs and model settings |
+| `pE` fields except `G` | Yes | Yes | Same non-G prior means |
+| `pE.G` | No | Yes | Intended receptor-informed difference; maximum absolute difference `0.364702764934` |
+| `pC.G` | Yes | Yes | Same G prior variances: `0.03125` |
+| `pC.D` in original receptor model | No | No | Unintended mismatch; maximum absolute difference `0.015625` |
+| All `pC` fields in corrected model | Yes | Yes | Confound removed |
+
+## Corrected inversion results
+
+| Measure | Value | Notes |
+|---|---:|---|
+| Corrected receptor-informed free energy | `12.220501478673` | Finite value; inversion completed |
+| Matched baseline free energy | `-49.9764978655` | Previously obtained with matched Ulrich 10-G priors |
+| ΔF (receptor − baseline) | `62.196999344173` | Favours receptor-informed model |
+| Maximum absolute posterior-prior change in `G` | `1.380685397255` | Largest posterior movement |
+| Mean absolute posterior-prior change in `G` | `0.326140791714` | Average posterior movement |
+| Runtime | `5.21 minutes` | Corrected receptor inversion |
+| Posterior `G` dimensions | `5 × 10` | Five sources × ten G parameters |
+
+## Interpretation
+
+After correction, the baseline and receptor-informed models differed only in `DCM.M.pE.G`. The corrected receptor-informed model had a free-energy advantage of approximately `62.20` over the matched zero-centred baseline, indicating substantially greater model evidence for the receptor-informed G prior means in this fitted model.
+
+The earlier receptor-informed inversion (`F ≈ -397.88`) should not be used for scientific interpretation because the model also differed in `pC.D`. The corrected inversion supersedes that result.
+
+**Caution:** The inversion log reached iteration 64. The finite free energy and posterior estimates were saved successfully, but convergence diagnostics and identical inversion settings across models should be documented before treating the comparison as final.
+
+## Files created or updated today
+
+- `DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat`
+- `DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_CORRECTED_INVERTED.mat`
+- `prepare_receptor_model_corrected.m`
+- `invert_corrected_receptor_model.m`
+- `compare_baseline_receptor_priors.m`
+- `compare_corrected_model_evidence.m`
+
+## Next steps
+
+1. Run and save the final comparison script output alongside both inverted model files.
+2. Confirm that baseline and receptor-informed inversions used identical inversion functions, iteration limits, deterministic initialisation, and supplied prior structures.
+3. Inspect convergence diagnostics and predicted versus observed responses before final reporting.
+4. Update the thesis methods/results text and presentation to replace the old confounded receptor-model result with the corrected matched comparison.
