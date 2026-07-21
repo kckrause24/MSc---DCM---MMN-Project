@@ -1,0 +1,85 @@
+%% Invert the corrected receptor-informed five-source DCM
+
+clear;
+clc;
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+assert(isfolder(custom_dir), ...
+    'Cannot find Ulrich custom-function directory:\n%s', custom_dir);
+addpath(custom_dir, '-begin');
+
+active_inversion_function = which('mmn_spm_dcm_erp_MP_eP');
+assert(~isempty(active_inversion_function), ...
+    'MATLAB cannot find mmn_spm_dcm_erp_MP_eP.');
+assert(contains(active_inversion_function, 'Ulrich_10G_working_functions'), ...
+    'MATLAB is using the wrong inversion function:\n%s', active_inversion_function);
+fprintf('Active inversion function:\n%s\n\n', active_inversion_function);
+
+dcm_folder = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich'];
+
+input_file = fullfile(dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_UNINVERTED.mat');
+
+output_file = fullfile(dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_RECEPTOR_SIGMA1CM_CORRECTED_INVERTED.mat');
+
+assert(isfile(input_file), 'Cannot find corrected receptor model:\n%s', input_file);
+S = load(input_file, 'DCM');
+assert(isfield(S, 'DCM'), 'The input file does not contain DCM.');
+DCM = S.DCM;
+fprintf('Corrected receptor-informed DCM loaded.\n');
+
+assert(isequal(size(DCM.M.pE.G), [5 10]), 'DCM.M.pE.G is not 5 x 10.');
+assert(isequal(size(DCM.M.pC.G), [5 10]), 'DCM.M.pC.G is not 5 x 10.');
+fprintf('Prior dimensions verified:\n');
+fprintf('DCM.M.pE.G = %s\n', mat2str(size(DCM.M.pE.G)));
+fprintf('DCM.M.pC.G = %s\n', mat2str(size(DCM.M.pC.G)));
+
+for field_name = {'Ep', 'Cp', 'F'}
+    if isfield(DCM, field_name{1})
+        DCM = rmfield(DCM, field_name{1});
+    end
+end
+
+fprintf('\n============================================================\n');
+fprintf('STARTING CORRECTED RECEPTOR MODEL INVERSION\n');
+fprintf('============================================================\n');
+
+start_time = tic;
+DCM = mmn_spm_dcm_erp_MP_eP(DCM);
+elapsed_seconds = toc(start_time);
+
+fprintf('\n============================================================\n');
+fprintf('INVERSION COMPLETED\n');
+fprintf('============================================================\n');
+fprintf('Runtime: %.2f minutes\n', elapsed_seconds / 60);
+
+assert(isfield(DCM, 'F') && isfinite(DCM.F), 'No finite DCM.F was produced.');
+assert(isfield(DCM, 'Ep') && isfield(DCM.Ep, 'G'), 'No posterior DCM.Ep.G was produced.');
+assert(isequal(size(DCM.Ep.G), [5 10]), 'Posterior DCM.Ep.G is not 5 x 10.');
+
+posterior_prior_difference = full(DCM.Ep.G) - full(DCM.M.pE.G);
+maximum_absolute_change = max(abs(posterior_prior_difference), [], 'all');
+mean_absolute_change = mean(abs(posterior_prior_difference), 'all');
+
+fprintf('Corrected receptor free energy: %.12f\n', DCM.F);
+fprintf('Posterior DCM.Ep.G size: %s\n', mat2str(size(DCM.Ep.G)));
+fprintf('Maximum absolute posterior-prior change: %.12f\n', maximum_absolute_change);
+fprintf('Mean absolute posterior-prior change: %.12f\n', mean_absolute_change);
+
+save(output_file, 'DCM', '-v7.3');
+fprintf('\nSaved corrected inverted receptor model to:\n%s\n', output_file);
+
+V = load(output_file, 'DCM');
+assert(isequaln(V.DCM.F, DCM.F), 'Reloaded free energy does not match.');
+assert(isequal(size(V.DCM.Ep.G), [5 10]), ...
+    'Reloaded posterior DCM.Ep.G is not 5 x 10.');
+
+fprintf('\nSaved-file verification passed.\n');
+fprintf('Final corrected receptor free energy: %.12f\n', V.DCM.F);
