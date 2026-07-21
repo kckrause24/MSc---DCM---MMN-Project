@@ -1,0 +1,108 @@
+%% Compare matched baseline and receptor-informed prior structures
+
+clear;
+clc;
+
+custom_dir = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day4_10G_Diagnostic/' ...
+     'Ulrich_10G_working_functions'];
+
+dcm_folder = ...
+    ['/Users/klauskrause/Documents/MATLAB/' ...
+     'ds004837_controls_spm/DCM_Day5_5Source_Ulrich'];
+
+baseline_original_file = fullfile( ...
+    dcm_folder, ...
+    'DCM_20HC_standard_pitch_CMC_5source_ULRICH_UNINVERTED.mat');
+
+receptor_file = fullfile( ...
+    dcm_folder, ...
+    ['DCM_20HC_standard_pitch_CMC_5source_' ...
+     'RECEPTOR_SIGMA1CM_UNINVERTED.mat']);
+
+addpath(custom_dir, '-begin');
+
+B = load(baseline_original_file, 'DCM');
+R = load(receptor_file, 'DCM');
+
+baseline_DCM = B.DCM;
+receptor_DCM = R.DCM;
+
+[baseline_pE, baseline_pC] = mmn_spm_dcm_neural_priors( ...
+    baseline_DCM.A, baseline_DCM.B, baseline_DCM.C, ...
+    baseline_DCM.options.model);
+
+receptor_pE = receptor_DCM.M.pE;
+receptor_pC = receptor_DCM.M.pC;
+
+fprintf('============================================================\n');
+fprintf('FIXED MODEL COMPONENTS\n');
+fprintf('============================================================\n');
+fprintf('A identical:       %d\n', isequaln(baseline_DCM.A, receptor_DCM.A));
+fprintf('B identical:       %d\n', isequaln(baseline_DCM.B, receptor_DCM.B));
+fprintf('C identical:       %d\n', isequaln(baseline_DCM.C, receptor_DCM.C));
+fprintf('Lpos identical:    %d\n', isequaln(baseline_DCM.Lpos, receptor_DCM.Lpos));
+fprintf('Sname identical:   %d\n', isequaln(baseline_DCM.Sname, receptor_DCM.Sname));
+fprintf('xU identical:      %d\n', isequaln(baseline_DCM.xU, receptor_DCM.xU));
+fprintf('options identical: %d\n', isequaln(baseline_DCM.options, receptor_DCM.options));
+
+fprintf('\n============================================================\n');
+fprintf('PRIOR EXPECTATION COMPARISON\n');
+fprintf('============================================================\n');
+
+pE_fields = union(fieldnames(baseline_pE), fieldnames(receptor_pE));
+for i = 1:numel(pE_fields)
+    field_name = pE_fields{i};
+    if ~isfield(baseline_pE, field_name) || ~isfield(receptor_pE, field_name)
+        fprintf('pE.%s: missing from one structure\n', field_name);
+        continue;
+    end
+    value_1 = baseline_pE.(field_name);
+    value_2 = receptor_pE.(field_name);
+    same_size = isequal(size(value_1), size(value_2));
+    identical = isequaln(full(value_1), full(value_2));
+    fprintf('pE.%s: same size = %d, identical = %d', field_name, same_size, identical);
+    if same_size && isnumeric(value_1) && isnumeric(value_2)
+        difference = full(value_1) - full(value_2);
+        fprintf(', maximum absolute difference = %.12g', max(abs(difference), [], 'all'));
+    end
+    fprintf('\n');
+end
+
+fprintf('\n============================================================\n');
+fprintf('PRIOR COVARIANCE COMPARISON\n');
+fprintf('============================================================\n');
+
+pC_fields = union(fieldnames(baseline_pC), fieldnames(receptor_pC));
+for i = 1:numel(pC_fields)
+    field_name = pC_fields{i};
+    if ~isfield(baseline_pC, field_name) || ~isfield(receptor_pC, field_name)
+        fprintf('pC.%s: missing from one structure\n', field_name);
+        continue;
+    end
+    value_1 = baseline_pC.(field_name);
+    value_2 = receptor_pC.(field_name);
+    same_size = isequal(size(value_1), size(value_2));
+    identical = isequaln(full(value_1), full(value_2));
+    fprintf('pC.%s: same size = %d, identical = %d', field_name, same_size, identical);
+    if same_size && isnumeric(value_1) && isnumeric(value_2)
+        difference = full(value_1) - full(value_2);
+        fprintf(', maximum absolute difference = %.12g', max(abs(difference), [], 'all'));
+    end
+    fprintf('\n');
+end
+
+fprintf('\n============================================================\n');
+fprintf('G-SPECIFIC COMPARISON\n');
+fprintf('============================================================\n');
+fprintf('Baseline pE.G size: %s\n', mat2str(size(baseline_pE.G)));
+fprintf('Receptor pE.G size: %s\n', mat2str(size(receptor_pE.G)));
+fprintf('Baseline pC.G size: %s\n', mat2str(size(baseline_pC.G)));
+fprintf('Receptor pC.G size: %s\n', mat2str(size(receptor_pC.G)));
+fprintf('pE.G identical: %d\n', isequaln(full(baseline_pE.G), full(receptor_pE.G)));
+fprintf('pC.G identical: %d\n', isequaln(full(baseline_pC.G), full(receptor_pC.G)));
+if isequal(size(baseline_pC.G), size(receptor_pC.G))
+    fprintf('Maximum absolute pC.G difference: %.12g\n', ...
+        max(abs(full(baseline_pC.G) - full(receptor_pC.G)), [], 'all'));
+end
